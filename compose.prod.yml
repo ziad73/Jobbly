@@ -1,0 +1,7 @@
+services:
+  api:
+    build:
+      target: production
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+    restart: unless-stopped

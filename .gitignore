@@ -1,0 +1,67 @@
+# Build artifacts
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+**/[Bb]in/
+**/[Oo]bj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local dev settings
+**/launchSettings.json
+**/appsettings.Development.json
+
+# Docker
+docker-compose.override.yml
+compose.override.yml
+
+# Temp files
+temp.props
+
+# Secrets / env files
+.env
+.env.*
+
+# NuGet
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+
+# Publish output
+[Pp]ublish/
+publish/
+
+# Test results
+[Tt]est[Rr]esult*/
+TestResults/
+coverage*.json
+*.coverage
+*.coveragexml
+
+# EF Core migrations history (local dev databases)
+*.db
+*.db-shm
+*.db-wal
+
+# OS files
+.DS_Store
+Thumbs.db
+
+
+project-setup.sh

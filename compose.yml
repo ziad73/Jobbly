@@ -1,0 +1,43 @@
+services:
+  api:
+    image: jobbly-api    # must be lowercase
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    networks:
+      - jobbly-net
+    ports:
+      - "${API_PORT}:5044"
+    environment:
+      # ConnectionStrings__{connection-name}: {connection-string}
+      ConnectionStrings__moviesdb: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      JwtSettings__Key: ${JWT_KEY}
+      JwtSettings__Issuer: ${JWT_ISSUER}
+      JwtSettings__Audience: ${JWT_AUDIENCE}
+    depends_on:                               # API service not started until DB service is ready && healthy
+      db:
+        condition: service_healthy            # Wait for postgres-db to be HEALTHY before starting app
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - jobbly-pgdata:/var/lib/postgresql/data
+    networks:
+      - jobbly-net
+    healthcheck:
+      # pg_isready checks if the PostgreSQL server is accepting connections
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  jobbly-net:
+
+volumes:
+  jobbly-pgdata:

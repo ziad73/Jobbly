@@ -4,9 +4,15 @@ Companion to [`PRD.md`](./PRD.md). This document answers **how** we build Jobbly
 
 | Field | Value |
 |---|---|
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Last Updated** | August 2026 |
 | **Backend** | .NET 10 / ASP.NET Core |
+
+> ### Changelog
+> | Version | Change |
+> |---|---|
+> | 1.1 | Finalized project structure as 4-project Clean Architecture (`Domain`/`Application`/`Infrastructure`/`Api`). Removed the separate `Jobbly.Pipeline` project — ingestion pipeline is now Application use cases + ports, implemented by Infrastructure adapters, same as every other feature. Added explicit layer dependency rules (project-reference direction vs. runtime request flow). Renamed `IProviderConnector` → `IJobConnector` for consistency. |
+> | 1.0 | Initial technical design |
 
 ---
 
@@ -65,25 +71,78 @@ Companion to [`PRD.md`](./PRD.md). This document answers **how** we build Jobbly
 
 ### 1.4 Project Structure
 
+Clean Architecture, four projects. The ingestion pipeline is **not** a separate project — it's Application use cases (orchestration, ports) plus Infrastructure adapters (connectors, EF Core, Hangfire), same as every other feature. This keeps one dependency rule for the whole codebase instead of a special case for the pipeline.
+
 ```
 Jobbly.sln
 ├── src/
-│   ├── Jobbly.Api/                  # ASP.NET Core — Minimal API endpoints
-│   │   ├── Endpoints/               # Jobs, Users, Search, Auth
-│   │   ├── Middleware/              # Auth, rate limiting, error handling
-│   │   └── Program.cs
-│   ├── Jobbly.Application/          # Use cases, CQRS handlers (MediatR)
-│   ├── Jobbly.Domain/               # Entities, value objects, domain events
-│   ├── Jobbly.Infrastructure/       # EF Core, Redis, R2
-│   ├── Jobbly.Pipeline/             # Background workers + Hangfire jobs
-│   │   ├── Connectors/              # One connector class per provider
-│   │   ├── Stages/                  # Normalize · Dedup · Enrich · Index
-│   │   └── Workers/                 # IHostedService implementations
-│   └── Jobbly.Contracts/            # Shared DTOs and enums (API + Web)
-├── web/                             # Next.js frontend (npm workspace)
+│   ├── Jobbly.Domain/                     # Entities, value objects, enums — zero dependencies
+│   │   ├── Entities/                      # Job, JobSource, PipelineRun, User, SavedSearch, SavedJob
+│   │   └── Enums/                         # SeniorityLevel, ApplicationStatus
+│   │
+│   ├── Jobbly.Application/                # Use cases, CQRS handlers (MediatR), ports (interfaces)
+│   │   ├── Pipeline/
+│   │   │   ├── IJobConnector.cs           # port — no implementation here
+│   │   │   ├── IJobNormalizer.cs
+│   │   │   ├── IDeduplicationService.cs
+│   │   │   ├── IEnrichmentService.cs
+│   │   │   └── RunIngestionPipeline.cs    # orchestrator; depends only on interfaces above
+│   │   ├── Jobs/                          # Search, save, tracker use cases
+│   │   ├── Users/                         # Profile, auth-adjacent use cases
+│   │   └── Interfaces/
+│   │       └── IJobblyDbContext.cs        # Application defines what it needs from Infrastructure
+│   │
+│   ├── Jobbly.Infrastructure/             # Implements Application's interfaces
+│   │   ├── Connectors/                    # One connector class per provider
+│   │   │   ├── GreenhouseConnector.cs     # implements IJobConnector
+│   │   │   └── LeverConnector.cs
+│   │   ├── Persistence/
+│   │   │   └── JobblyDbContext.cs         # implements IJobblyDbContext — EF Core + Npgsql
+│   │   ├── BackgroundJobs/
+│   │   │   └── HangfireIngestionScheduler.cs
+│   │   ├── Caching/                       # Redis
+│   │   └── Storage/                       # R2 (v2 — resume uploads)
+│   │
+│   └── Jobbly.Api/                        # Minimal API endpoints, composition root
+│       ├── Endpoints/                     # Jobs, Users, Search, Auth
+│       ├── Middleware/                    # Auth, rate limiting, error handling
+│       └── Program.cs                     # DI wiring — the only place concrete types meet interfaces
+│
+├── web/                                   # Next.js frontend (npm workspace)
+├── tests/
+│   ├── Jobbly.Application.Tests/          # Mocks IJobConnector etc. — no DB/HTTP needed
+│   └── Jobbly.Infrastructure.Tests/       # Connector parsing, EF Core mapping
 ├── docker-compose.yml
 └── README.md
 ```
+
+#### Layer dependency rules
+
+Two different things point in two different directions here, and conflating them is the most common Clean Architecture mistake — worth stating explicitly:
+
+**Project references (compile-time — what each `.csproj` is allowed to reference):**
+
+```
+Jobbly.Domain          ← referenced by nothing; plain C#, zero dependencies
+      ▲
+Jobbly.Application     ← references Domain only
+      ▲
+Jobbly.Infrastructure  ← references Application + Domain (implements Application's interfaces)
+      ▲
+Jobbly.Api             ← references all three (composition root)
+```
+
+**Request flow (runtime — what actually calls what when a request comes in):**
+
+```
+HTTP Request → Api → Application → Domain
+                        ↕
+                 Infrastructure (invoked via interface, e.g. IJobConnector, IJobblyDbContext)
+```
+
+**The one non-negotiable rule:** `Jobbly.Application` never references `Jobbly.Infrastructure`. It only knows about interfaces it defines itself. `Infrastructure` reaches inward to implement those interfaces — that's the Dependency Inversion the layers exist to enforce.
+
+`Jobbly.Api` referencing `Jobbly.Infrastructure` is expected and necessary — but only for DI registration in `Program.cs` (mapping `IJobblyDbContext` → `JobblyDbContext`, `IJobConnector` → `GreenhouseConnector`, etc.). No endpoint handler in `Jobbly.Api` should reference a concrete Infrastructure type directly; they depend on Application's interfaces and use cases only.
 
 ---
 
@@ -138,14 +197,14 @@ The pipeline is the backbone of Jobbly. It runs continuously as .NET `Background
 ### 3.2 Provider Contract
 
 ```csharp
-public interface IProviderConnector
+public interface IJobConnector
 {
     string ProviderSlug { get; }
     Task<IReadOnlyList<RawJobDto>> FetchAsync(CancellationToken ct);
 }
 ```
 
-Every provider implements this interface. Polly wraps each call with a retry policy and a circuit breaker.
+This interface is a **port** — it lives in `Jobbly.Application/Pipeline/` (see §1.4). Every provider connector (`GreenhouseConnector`, `LeverConnector`, ...) is an **adapter** implementing it from `Jobbly.Infrastructure/Connectors/`. `RunIngestionPipeline` (also in Application) depends only on `IJobConnector`, never on a concrete connector — that's what lets a broken provider stay isolated and lets a new provider be added as pure Infrastructure work with zero changes to the orchestrator. Polly wraps each call with a retry policy and a circuit breaker.
 
 ### 3.3 Providers — Roll-out Plan
 
@@ -170,7 +229,7 @@ Every provider implements this interface. Polly wraps each call with a retry pol
 
 ```
 Stage 1 — INGEST
-  Hangfire triggers each IProviderConnector on schedule.
+  Hangfire triggers each IJobConnector on schedule.
   Raw payload saved to pipeline_runs for observability.
   Polly retries on failure (exponential backoff, max 5 attempts).
 
@@ -215,7 +274,7 @@ The pipeline and searchable job catalog come before advanced user features.
 **Goal:** Establish the backend structure, conventions, and infrastructure.
 
 **Scope**
-- Confirm project boundaries: `Presentation` (API/startup), `Core` (domain/use cases/contracts), `Infrastructure` (persistence, connectors, background jobs)
+- Confirm project boundaries: `Domain` (entities, no dependencies), `Application` (use cases, ports/interfaces), `Infrastructure` (EF Core, connectors, Hangfire — implements Application's interfaces), `Api` (Minimal API endpoints, composition root) — see §1.4 for the full structure and dependency rules
 - Set up PostgreSQL + EF Core with initial migration workflow
 - Define base entities for v1
 - Configuration structure for: database, provider settings, pipeline schedules, auth settings
