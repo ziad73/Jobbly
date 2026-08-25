@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/jobbly.Api/jobbly.Api.csproj" />
-    <Project Path="src/jobbly.Application/jobbly.Application.csproj" />
-    <Project Path="src/jobbly.Domain/jobbly.Domain.csproj" />
-    <Project Path="src/jobbly.Infrastructure/jobbly.Infrastructure.csproj" />
-  </Folder>
-</Solution>

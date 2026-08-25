@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Jobbly.Api/Jobbly.Api.csproj" />
+    <Project Path="src/Jobbly.Application/Jobbly.Application.csproj" />
+    <Project Path="src/Jobbly.Domain/Jobbly.Domain.csproj" />
+    <Project Path="src/Jobbly.Infrastructure/Jobbly.Infrastructure.csproj" />
+  </Folder>
+</Solution>

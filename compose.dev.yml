@@ -8,4 +8,4 @@ services:
       - .:/src:ro        # source read-only to the container
       - /src/bin         # anonymous, writable, isolated build output
       - /src/obj         # anonymous, writable, isolated restore/build cache
-    command: dotnet watch run src/jobbly.Api --no-launch-profile
+    command: dotnet watch run src/Jobbly.Api --no-launch-profile

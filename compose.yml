@@ -11,7 +11,7 @@ services:
       - "${API_PORT}:5044"
     environment:
       # ConnectionStrings__{connection-name}: {connection-string}
-      ConnectionStrings__moviesdb: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__jobblydb: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       JwtSettings__Key: ${JWT_KEY}
       JwtSettings__Issuer: ${JWT_ISSUER}
       JwtSettings__Audience: ${JWT_AUDIENCE}

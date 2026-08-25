@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\jobbly.Domain\jobbly.Domain.csproj" />
+    <ProjectReference Include="..\Jobbly.Domain\Jobbly.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
