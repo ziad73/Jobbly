@@ -1,4 +1,5 @@
 using Jobbly.Application.Common;
+using Jobbly.Infrastructure.Config;
 using Jobbly.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -15,10 +16,25 @@ public static class DependencyInjection
 
         services.AddDbContext<JobblyDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql =>
-                // Tells EF Core where to look for database migrations.
                 npgsql.MigrationsAssembly(typeof(JobblyDbContext).Assembly.FullName)));
 
         services.AddScoped<IJobblyDbContext>(sp => sp.GetRequiredService<JobblyDbContext>());
+
+        // Register IOptions and bind config to an object with validation  
+        services.AddOptions<ProvidersOptions>()
+            .BindConfiguration(ProvidersOptions.SectionName)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<PipelineOptions>()
+            .BindConfiguration(PipelineOptions.SectionName)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<JwtOptions>()
+            .BindConfiguration(JwtOptions.SectionName)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         return services;
     }

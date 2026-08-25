@@ -10,8 +10,7 @@ using NpgsqlTypes;
 
 #nullable disable
 
-namespace Jobbly.Infrastructure.Persistence.Migrations
-{
+namespace Jobbly.Infrastructure.Persistence.Migrations;
     [DbContext(typeof(JobblyDbContext))]
     [Migration("20260825143304_InitialCreate")]
     partial class InitialCreate
@@ -404,4 +403,3 @@ namespace Jobbly.Infrastructure.Persistence.Migrations
 #pragma warning restore 612, 618
         }
     }
-}

@@ -9,8 +9,7 @@ using NpgsqlTypes;
 
 #nullable disable
 
-namespace Jobbly.Infrastructure.Persistence.Migrations
-{
+namespace Jobbly.Infrastructure.Persistence.Migrations;
     [DbContext(typeof(JobblyDbContext))]
     partial class JobblyDbContextModelSnapshot : ModelSnapshot
     {
@@ -401,4 +400,3 @@ namespace Jobbly.Infrastructure.Persistence.Migrations
 #pragma warning restore 612, 618
         }
     }
-}

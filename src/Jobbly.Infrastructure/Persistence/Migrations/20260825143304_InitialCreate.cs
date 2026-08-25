@@ -4,8 +4,7 @@ using NpgsqlTypes;
 
 #nullable disable
 
-namespace Jobbly.Infrastructure.Persistence.Migrations
-{
+namespace Jobbly.Infrastructure.Persistence.Migrations;
     /// <inheritdoc />
     public partial class InitialCreate : Migration
     {
@@ -252,4 +251,3 @@ namespace Jobbly.Infrastructure.Persistence.Migrations
                 name: "providers");
         }
     }
-}
