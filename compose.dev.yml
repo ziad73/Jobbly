@@ -4,8 +4,13 @@ services:
       target: development
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      # No TTY in the container - can't press Ctrl+R when hot reload hits a
+      # rude edit (e.g. changes to top-level statements). Restart instead.
+      DOTNET_WATCH_RESTART_ON_RUDE_EDIT: "1"
     volumes:
-      - .:/src:ro        # source read-only to the container
+      # NOTE: not read-only - the /src/bin and /src/obj anonymous-volume
+      # overrides below must be able to shadow those directories.
+      - .:/src
       - /src/bin         # anonymous, writable, isolated build output
       - /src/obj         # anonymous, writable, isolated restore/build cache
-    command: dotnet watch run src/Jobbly.Api --no-launch-profile
+    command: dotnet watch run --project src/Jobbly.Api --no-launch-profile

@@ -4,7 +4,7 @@ A technical job aggregation platform. Jobbly pulls listings from multiple job-bo
 
 Built as a learning project — the goal is to ship a working v1 while getting real reps on Clean Architecture, background job pipelines, and Postgres full-text search.
 
-> Full product spec: [`PRD.md`](./PRD.md) · Technical design (schema, API contract, delivery phases): `TECHNICAL-DESIGN.md`
+> Product spec: [`PRD.md`](./docs/PRD.md) · Technical design (schema, API contract, delivery phases): [`TECHNICAL-DESIGN.md`](./docs/TECHNICAL-DESIGN.md)
 
 ---
 
@@ -16,7 +16,7 @@ Built as a learning project — the goal is to ship a working v1 while getting r
 - **Saved searches** — persist filters, dashboard feed surfaces new matches
 - **Application tracker** — `saved → applied → in_progress → closed`, private notes, follow-up dates
 
-v1 scope deliberately excludes AI matching, alerts, and resume analysis — those are v2/v3, once the pipeline and retention are proven. See [PRD §6](./PRD.md#6-not-in-v1-out-of-scope).
+v1 scope deliberately excludes AI matching, alerts, and resume analysis — those are v2/v3, once the pipeline and retention are proven. See [PRD §6](./docs/PRD.md#6-not-in-v1-out-of-scope).
 
 ---
 
@@ -25,76 +25,112 @@ v1 scope deliberately excludes AI matching, alerts, and resume analysis — thos
 | Layer | Choice |
 |---|---|
 | Backend | .NET 10 / ASP.NET Core, Minimal APIs |
-| Database | PostgreSQL (Npgsql + EF Core) |
-| Search | Postgres full-text (`tsvector`/`tsquery`) — Elasticsearch later if scale demands it |
+| Database | PostgreSQL 16 (EF Core + Npgsql) |
+| Search | Postgres full-text (`tsvector` generated column + GIN index) — Elasticsearch later if scale demands it |
 | Background jobs | Hangfire (ingestion pipeline scheduling, dashboard, retries) |
-| Auth | JWT access + refresh tokens (httpOnly cookie), Google OAuth |
+| Auth | JWT access + refresh tokens (httpOnly cookie), Google OAuth *(Phase 3)* |
 | Containerization | Docker / Docker Compose |
-| CI/CD | GitHub Actions |
 
 ---
 
 ## Architecture
 
-Clean Architecture — the ingestion pipeline is a set of Application use cases triggered by Hangfire, not a separate service.
+Clean Architecture, four projects. The ingestion pipeline is Application use cases (ports + orchestrator) implemented by Infrastructure adapters — not a separate service.
 
 ```
-Jobbly.sln
-├── src/
-│   ├── Jobbly.Domain/          # Entities: Job, JobSource, PipelineRun
-│   ├── Jobbly.Application/     # Use cases + ports: IJobConnector, IJobNormalizer,
-│   │                           #   IDeduplicationService, IEnrichmentService,
-│   │                           #   RunIngestionPipeline
-│   ├── Jobbly.Infrastructure/  # Connectors (Greenhouse, Lever), EF Core/Npgsql,
-│   │                           #   Hangfire scheduling
-│   └── Jobbly.Api/             # Minimal APIs, composition root
-└── tests/
-    ├── Jobbly.Application.Tests/
-    └── Jobbly.Infrastructure.Tests/
+Jobbly.slnx
+└── src/
+    ├── Jobbly.Domain/          # Entities (Provider, Company, Job, CanonicalJob,
+    │                           #   PipelineRun) + enums — zero dependencies
+    ├── Jobbly.Application/     # Use cases + ports: IJobConnector, IJobNormalizer,
+    │                           #   IDeduplicationService, IEnrichmentService,
+    │                           #   RunIngestionPipeline, IJobblyDbContext
+    ├── Jobbly.Infrastructure/  # Connectors (Greenhouse, Lever), EF Core/Npgsql,
+    │                           #   Hangfire scheduling, options config
+    └── Jobbly.Api/             # Minimal APIs, middleware, composition root
 ```
+
+**Dependency rule:** `Application` never references `Infrastructure` — Infrastructure implements Application's interfaces; `Api` is the only place they meet (DI wiring in `Program.cs`).
 
 **Pipeline flow** (Hangfire-triggered, runs per provider independently so one broken source never cascades):
 
 ```
 Hangfire trigger → RunIngestionPipeline
-  → connector.FetchAsync()        (per provider, isolated)
-  → save to raw_listings          (staging)
-  → normalize → canonical Job
-  → deduplicate (link via JobSource, keep provenance)
-  → enrich (tags, seniority, salary)
-  → upsert → Postgres
-  → record PipelineRun (counts, errors, duration)
+  → IJobConnector.FetchAsync()    (per provider, isolated, Polly retry + circuit breaker)
+  → normalize                     (provider payload → canonical Job entity)
+  → deduplicate                   (fingerprint match → link to CanonicalJob)
+  → enrich                        (tech tags, seniority inference, salary normalization)
+  → index                         (Postgres FTS tsvector is maintained by a generated column)
+  → record PipelineRun            (counts, errors, retries)
 ```
 
-Design decision: the pipeline is embedded in `Jobbly.Api` for v1 (not a separate service) — direct DB writes, one deployable, no distributed-consistency problem to solve prematurely. It's built behind ports (`IJobConnector`, `RunIngestionPipeline`) so it can be extracted later if there's a concrete reason to.
+Design decision: the pipeline runs inside `Jobbly.Api` for v1 (one deployable, direct DB writes). It's built behind ports so it can be extracted later if there's a concrete reason to.
 
 ---
 
-## Build order (v1)
+## Delivery status
 
-Bottom-up — each phase produces something runnable before the next depends on it:
+Following the phases in [TECHNICAL-DESIGN §4](./docs/TECHNICAL-DESIGN.md#4-delivery-phases):
 
-1. **Skeleton & plumbing** — solution structure, EF Core + Postgres migration, Hangfire wired with a dummy job, Docker Compose dev environment
-2. **Canonical model + fake connector** — finalize `Job` entity, one in-memory fake `IJobConnector`, prove the pipeline end-to-end
-3. **Real connector: Greenhouse** — `HttpClientFactory`, per-connector error handling/retries
-4. **Normalization** — real provider-shape → canonical `Job` mapping, rule-based tech-stack tagging
-5. **Deduplication** — rule-based matching against real data, provenance preserved via `JobSource`
-6. **Enrichment** — seniority inference, salary normalization
-7. **Second connector: Lever** — validates the architecture; adding a provider should mean *only* a new connector + DI registration
-8. **Observability** — `PipelineRun` populated properly, Hangfire dashboard as the monitoring surface
+- [x] **Phase 0 — Foundation**: project structure, domain entities, EF Core + migrations, Postgres FTS groundwork, validated options config, Serilog + ProblemDetails error handling, Docker Compose dev/prod environments
+- [ ] **Phase 1 — Pipeline backbone**: Greenhouse connector end-to-end, normalize → dedup → enrich → index, Hangfire orchestration
+- [ ] **Phase 2 — Search & discovery MVP**: `GET /api/jobs`, filters, sorting
+- [ ] **Phase 3 — Accounts & profile**
+- [ ] **Phase 4 — Saved jobs/searches & application tracker**
+- [ ] **Phase 5 — Expand coverage & harden**
 
 ---
 
 ## Getting started
 
+### Prerequisites
+
+- .NET SDK 10 (for local dev without Docker)
+- Docker + Docker Compose
+
+### Run with Docker Compose (recommended)
+
 ```bash
 git clone <repo-url>
 cd jobbly
-docker compose up
+
+# configure secrets (JWT key, DB credentials, ports)
+cp .env.example .env   # then edit values
+
+# development - hot reload via dotnet watch, Scalar UI enabled
+docker compose -f compose.yml -f compose.dev.yml up --build
+
+# or production target
+docker compose up --build
 ```
 
-_(Setup instructions will be filled in as Phase 0 lands.)_
+Once running:
+
+| URL | What |
+|---|---|
+| `http://localhost:${API_PORT}/scalar/v1` | Scalar API UI (dev only) |
+| `http://localhost:${API_PORT}/openapi/v1.yaml` | OpenAPI spec (dev only) |
+| `localhost:${POSTGRES_PORT}` | Postgres (host-side access) |
+
+Migrations apply automatically on startup (`DatabaseInitializer`). The API waits for the DB healthcheck before starting.
+
+### Local dev without Docker
+
+```bash
+docker compose up -d db        # database only
+dotnet build Jobbly.slnx
+dotnet watch run --project src/Jobbly.Api
+```
+
+Connection strings and settings live in `src/Jobbly.Api/appsettings.json` (overridable per environment / env vars). All option sections (`Providers`, `Pipeline`, `JwtSettings`) are validated at startup — misconfiguration fails fast.
+
+### Gotchas worth knowing
+
+- Running the compiled DLL directly sets the **content root to your current directory** — launch from the app's output folder or set `ASPNETCORE_CONTENTROOT`, otherwise config won't load
+- Incremental builds don't always recopy edited `appsettings*.json` into `bin/` — rebuild after config edits if changes seem ignored
 
 ---
+
 ## License
+
 TBD
