@@ -1,4 +1,5 @@
 using Scalar.AspNetCore;
+using Jobbly.Api.Middleware;
 using Jobbly.Application;
 using Jobbly.Infrastructure;
 using Jobbly.Infrastructure.Persistence;
@@ -12,6 +13,7 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 // Enables automatic validation for all Minimal API endpoints
 builder.Services.AddValidation();
 
@@ -28,6 +30,9 @@ await app.Services.InitializeDatabaseAsync();
 
 // Add status code pages (so even plain 404s / 500s return a body), With this middleware, you’ll get an actual JSON payload for non-successful status codes.
 app.UseStatusCodePages();
+
+// Convert unhandled exceptions into RFC 9457 ProblemDetails
+app.UseExceptionHandler();
 
 
 // ideal order of middleware
