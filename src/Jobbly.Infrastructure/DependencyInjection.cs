@@ -11,10 +11,12 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("jobblydb")
-            ?? "Host=localhost;Port=5432;Database=jobbly;Username=my_user;Password=1234";
+            ?? "Host=localhost;Port=5433;Database=jobbly;Username=my_user;Password=1234";
 
         services.AddDbContext<JobblyDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options.UseNpgsql(connectionString, npgsql =>
+                // Tells EF Core where to look for database migrations.
+                npgsql.MigrationsAssembly(typeof(JobblyDbContext).Assembly.FullName)));
 
         services.AddScoped<IJobblyDbContext>(sp => sp.GetRequiredService<JobblyDbContext>());
 

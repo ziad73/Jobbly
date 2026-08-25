@@ -1,3 +1,4 @@
+using Jobbly.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jobbly.Application.Common;
@@ -7,5 +8,11 @@ namespace Jobbly.Application.Common;
 // services get the full power of EF Core and LINQ - no repository in between.
 public interface IJobblyDbContext
 {
+    DbSet<Provider> Providers { get; }
+    DbSet<Company> Companies { get; }
+    DbSet<Job> Jobs { get; }
+    DbSet<CanonicalJob> CanonicalJobs { get; }
+    DbSet<PipelineRun> PipelineRuns { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,7 @@
 using Scalar.AspNetCore;
 using Jobbly.Application;
 using Jobbly.Infrastructure;
+using Jobbly.Infrastructure.Persistence;
 using Serilog;
 
 
@@ -23,7 +24,7 @@ var app = builder.Build();
 // Apply migrations on startup so the app runs with a single command,
 // including inside containers where no separate migration step exists.
 // NOTE: fine for local dev and demos - revisit before real production use.
-// await app.Services.InitializeDatabaseAsync();
+await app.Services.InitializeDatabaseAsync();
 
 // Add status code pages (so even plain 404s / 500s return a body), With this middleware, you’ll get an actual JSON payload for non-successful status codes.
 app.UseStatusCodePages();
