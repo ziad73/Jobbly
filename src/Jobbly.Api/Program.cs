@@ -66,5 +66,7 @@ app.UseSerilogRequestLogging();
 // app.UseAuthentication();
 // app.UseAuthorization(); // validates access permissions for the current authenticated user.
 
+// Hello, world
+app.MapGet("temp", () => "Hello, world devvvv");
 
 app.Run();

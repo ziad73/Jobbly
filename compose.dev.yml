@@ -11,6 +11,7 @@ services:
       # NOTE: not read-only - the /src/bin and /src/obj anonymous-volume
       # overrides below must be able to shadow those directories.
       - .:/src
-      - /src/bin         # anonymous, writable, isolated build output
-      - /src/obj         # anonymous, writable, isolated restore/build cache
+      # - .:/src:ro
+      # - /src/bin         # anonymous, writable, isolated build output
+      # - /src/obj         # anonymous, writable, isolated restore/build cache
     command: dotnet watch run --project src/Jobbly.Api --no-launch-profile
