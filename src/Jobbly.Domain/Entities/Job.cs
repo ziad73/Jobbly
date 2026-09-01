@@ -75,6 +75,25 @@ public sealed class Job
 
     public void AttachToCanonical(Guid canonicalJobId) => CanonicalJobId = canonicalJobId;
 
+    public void UpdateFromSource(
+        string title,
+        string companyName,
+        string sourceUrl,
+        string descriptionRaw,
+        DateTime? postedAtUtc,
+        string dedupFingerprint,
+        string? location = null)
+    {
+        Title = title;
+        CompanyName = companyName;
+        SourceUrl = sourceUrl;
+        DescriptionRaw = descriptionRaw;
+        PostedAt = postedAtUtc;
+        DedupFingerprint = dedupFingerprint;
+        Location = location;
+        PipelineStatus = PipelineStatus.Ingested;
+    }
+
     public void SetEnrichment(
         RemoteType remoteType,
         SeniorityLevel seniorityLevel,
