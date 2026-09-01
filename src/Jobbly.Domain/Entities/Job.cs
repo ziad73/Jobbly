@@ -12,6 +12,8 @@ public sealed class Job
     public Guid? CompanyId { get; private set; }
     public Company? Company { get; private set; }
 
+    public string DedupFingerprint { get; private set; } = null!;
+
     public string ExternalId { get; private set; } = null!;
     public string Title { get; private set; } = null!;
     public string CompanyName { get; private set; } = null!;
@@ -51,6 +53,7 @@ public sealed class Job
         string sourceUrl,
         string descriptionRaw,
         DateTime? postedAtUtc,
+        string dedupFingerprint,
         string? location = null)
     {
         return new Job
@@ -64,6 +67,7 @@ public sealed class Job
             SourceUrl = sourceUrl,
             DescriptionRaw = descriptionRaw,
             PostedAt = postedAtUtc,
+            DedupFingerprint = dedupFingerprint,
             PipelineStatus = PipelineStatus.Ingested,
             IngestedAt = DateTime.UtcNow
         };

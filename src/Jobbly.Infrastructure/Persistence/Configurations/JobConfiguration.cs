@@ -40,7 +40,13 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         builder.HasIndex(j => j.PipelineStatus);
         builder.HasIndex(j => j.PostedAt);
 
+        builder.HasIndex(j => j.DedupFingerprint);
+
         // Scalar columns
+        builder.Property(j => j.DedupFingerprint)
+            .IsRequired()
+            .HasMaxLength(64);
+
         builder.Property(j => j.ExternalId)
             .IsRequired()
             .HasMaxLength(300);
