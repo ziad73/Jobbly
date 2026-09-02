@@ -45,7 +45,7 @@ public sealed class HangfireIngestionScheduler
             RecurringJob.AddOrUpdate<HangfireIngestionScheduler>(
                 provider.Slug,
                 job => job.ExecuteAsync(provider.Slug),
-                Cron.MinuteInterval(provider.RefreshIntervalMinutes),// Cron is a time-based job scheduler
+                $"0 */{provider.RefreshIntervalMinutes} * * *",
                 new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
         }
     }

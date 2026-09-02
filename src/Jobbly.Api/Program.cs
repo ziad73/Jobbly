@@ -1,6 +1,7 @@
 using Hangfire;
 using Hangfire.PostgreSql;
 using Scalar.AspNetCore;
+using Jobbly.Api.Endpoints;
 using Jobbly.Api.Middleware;
 using Jobbly.Application;
 using Jobbly.Infrastructure;
@@ -87,5 +88,8 @@ app.UseSerilogRequestLogging();
 
 // Hello, world
 app.MapGet("temp", () => "Hello, world devvvv");
+
+// Pipeline endpoints
+app.MapPipelineEndpoints();
 
 app.Run();
