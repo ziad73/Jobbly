@@ -3,6 +3,7 @@ using Jobbly.Application.Pipeline;
 using Jobbly.Infrastructure.Config;
 using Jobbly.Infrastructure.Connectors;
 using Jobbly.Infrastructure.Persistence;
+using Jobbly.Infrastructure.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,6 +43,11 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         AddGreenhouseConnector(services);
+
+        // Pipeline services — called by the orchestrator in Application layer
+        services.AddScoped<IJobNormalizer, GreenhouseJobNormalizer>();
+        services.AddScoped<IDeduplicationService, DeduplicationService>();
+        services.AddScoped<IEnrichmentService, EnrichmentService>();
 
         return services;
     }

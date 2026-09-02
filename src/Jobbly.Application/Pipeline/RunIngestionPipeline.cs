@@ -7,7 +7,11 @@ namespace Jobbly.Application.Pipeline;
 
 // The pipeline has five jobs to do: fetch from a source, normalize, deduplicate across sources, enrich, and save. 
 // Each of those four steps is defined as a port (an interface) — the orchestrator coordinates them, but doesn't
-// know how they work internally.
+// know how they work internally. 
+
+// each provider has its own:
+//  - connector implementation: call the API then map its raw JSON into RawJobDto
+//  - normalizer implementation:  turns RawJobDto into a Job entity
 
 // The orchestrator handles the full flow including: skip-and-update when the same source posts the same job twice, 
 // record a run in the pipeline_runs table even on failure, and never crash the scheduler if one source breaks.
