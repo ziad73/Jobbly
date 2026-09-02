@@ -1,9 +1,15 @@
 using Jobbly.Application.Common;
+using Jobbly.Application.Pipeline;
 using Jobbly.Infrastructure.Config;
+using Jobbly.Infrastructure.Connectors;
 using Jobbly.Infrastructure.Persistence;
+using Jobbly.Infrastructure.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Options;
+using Polly;
 
 namespace Jobbly.Infrastructure;
 
@@ -36,6 +42,45 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        AddGreenhouseConnector(services);
+
+        // Pipeline services — called by the orchestrator in Application layer
+        services.AddScoped<IJobNormalizer, GreenhouseJobNormalizer>();
+        services.AddScoped<IDeduplicationService, DeduplicationService>();
+        services.AddScoped<IEnrichmentService, EnrichmentService>();
+
         return services;
+    }
+
+    private static void AddGreenhouseConnector(IServiceCollection services)
+    {
+        // register the connector with a typed HttpClient in DI, configured with a Polly resilience pipeline 
+        // (retry on transient failures + circuit breaker) and 30-second timeout.
+        services.AddHttpClient<IJobConnector, GreenhouseConnector>((sp, client) =>
+        {
+            var config = sp.GetRequiredService<IOptions<ProvidersOptions>>().Value.Sources["greenhouse"];
+            client.BaseAddress = new Uri(config.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+            client.DefaultRequestHeaders.Add("User-Agent", "Jobbly/1.0");
+        })
+        .AddResilienceHandler("greenhouse", (builder, context) =>
+        {
+            var pipeline = context.ServiceProvider
+                .GetRequiredService<IOptions<PipelineOptions>>().Value;
+
+            builder.AddRetry(new HttpRetryStrategyOptions
+            {
+                MaxRetryAttempts = pipeline.MaxRetryAttempts,
+                BackoffType = DelayBackoffType.Exponential,
+                UseJitter = true
+            });
+
+            builder.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
+            {
+                SamplingDuration = TimeSpan.FromSeconds(30),
+                FailureRatio = 0.5,
+                MinimumThroughput = 8
+            });
+        });
     }
 }

@@ -1,8 +1,13 @@
+using Hangfire;
+using Hangfire.PostgreSql;
 using Scalar.AspNetCore;
+using Jobbly.Api.Endpoints;
 using Jobbly.Api.Middleware;
 using Jobbly.Application;
 using Jobbly.Infrastructure;
+using Jobbly.Infrastructure.BackgroundJobs;
 using Jobbly.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 
 
@@ -21,12 +26,24 @@ builder.Services.AddValidation();
 builder.Services.AddSerilog((services, lc) => lc
     .ReadFrom.Configuration(builder.Configuration));
 
+// Hangfire background job server with Postgres storage (same jobblydb database).
+builder.Services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UsePostgreSqlStorage(options =>
+        options.UseNpgsqlConnection(builder.Configuration.GetConnectionString("jobblydb"))));
+builder.Services.AddHangfireServer();
+
 var app = builder.Build();
 
 // Apply migrations on startup so the app runs with a single command,
 // including inside containers where no separate migration step exists.
 // NOTE: fine for local dev and demos - revisit before real production use.
 await app.Services.InitializeDatabaseAsync();
+
+// Register recurring ingestion jobs after migrations so Provider rows exist.
+HangfireIngestionScheduler.RegisterRecurringJobs(app.Services);
 
 // Add status code pages (so even plain 404s / 500s return a body), With this middleware, you’ll get an actual JSON payload for non-successful status codes.
 app.UseStatusCodePages();
@@ -40,6 +57,9 @@ app.UseExceptionHandler();
 // Exception handling middleware
 if (app.Environment.IsDevelopment())
 {
+    // Hangfire dashboard — dev only; real auth is gated in a later phase.
+    app.UseHangfireDashboard("/hangfire");
+
     // OpenAPI spec file
     app.MapOpenApi("/openapi/v1.yaml");// backend endpoint generator. It compiles your C# endpoints/models into a raw OpenAPI specification file
 
@@ -66,5 +86,10 @@ app.UseSerilogRequestLogging();
 // app.UseAuthentication();
 // app.UseAuthorization(); // validates access permissions for the current authenticated user.
 
+// Hello, world
+app.MapGet("temp", () => "Hello, world devvvv");
+
+// Pipeline endpoints
+app.MapPipelineEndpoints();
 
 app.Run();
