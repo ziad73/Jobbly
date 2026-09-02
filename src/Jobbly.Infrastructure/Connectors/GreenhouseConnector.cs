@@ -53,7 +53,14 @@ public sealed class GreenhouseConnector : IJobConnector
                 j.Location?.Name,
                 j.Content,
                 j.AbsoluteUrl!,
-                j.FirstPublished ?? j.UpdatedAt))
+                PostedAtToUtc(j.FirstPublished ?? j.UpdatedAt)))
             .ToList() ?? [];
     }
+
+    // Greenhouse timestamps are ISO 8601 with an offset. Deserialized as
+    // DateTimeOffset (offset preserved) then normalized to a UTC DateTime so
+    // Npgsql can write the value to a "timestamptz" column (it rejects
+    // DateTimeKind.Local).
+    private static DateTime? PostedAtToUtc(DateTimeOffset? value)
+        => value?.ToUniversalTime().UtcDateTime;
 }

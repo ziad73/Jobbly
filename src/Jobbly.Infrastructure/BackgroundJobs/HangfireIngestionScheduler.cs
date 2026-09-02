@@ -29,10 +29,16 @@ public sealed class HangfireIngestionScheduler
     // Registers one recurring job per active Provider, keyed by slug so
     // re-registration on startup is an idempotent upsert. Runs after migrations
     // are applied so the provider data is queryable.
+    //
+    // Uses the DI-resolved IRecurringJobManager rather than the static
+    // RecurringJob helper: at startup the static JobStorage.Current has not been
+    // set yet, which throws InvalidOperationException. IRecurringJobManager is
+    // resolved from the service provider and works regardless.
     public static void RegisterRecurringJobs(IServiceProvider services)
     {
         using var scope = services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IJobblyDbContext>();
+        var recurringJobs = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
 
         var providers = dbContext.Providers
             .Where(p => p.IsActive)
@@ -42,11 +48,31 @@ public sealed class HangfireIngestionScheduler
         // for each active provider, register a recurring job -Run Ingestion Pipeline-
         foreach (var provider in providers)
         {
-            RecurringJob.AddOrUpdate<HangfireIngestionScheduler>(
+            recurringJobs.AddOrUpdate<HangfireIngestionScheduler>(
                 provider.Slug,
                 job => job.ExecuteAsync(provider.Slug),
-                $"0 */{provider.RefreshIntervalMinutes} * * *",
+                BuildCronInterval(provider.RefreshIntervalMinutes),
                 new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
         }
+    }
+
+    // Converts a refresh interval in whole minutes into a valid 5-field CRON
+    // expression. A bare "*/N" is only valid while N stays within the field's
+    // range, so hour-aligned intervals (e.g. 180 min = every 3 hours) are
+    // expanded to "0 */H * * *". Falls back to minute-granularity when the
+    // value fits a minute step.
+    private static string BuildCronInterval(int refreshIntervalMinutes)
+    {
+        if (refreshIntervalMinutes > 0 && refreshIntervalMinutes % 60 == 0)
+        {
+            var hours = refreshIntervalMinutes / 60;
+            if (24 % hours == 0)
+            {
+                return $"0 */{hours} * * *";
+            }
+        }
+
+        var step = Math.Clamp(refreshIntervalMinutes, 1, 60);
+        return $"*/{step} * * * *";
     }
 }

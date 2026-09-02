@@ -21,8 +21,8 @@ public sealed class GreenhouseJob
     public string? AbsoluteUrl { get; init; }
     public string? Content { get; init; }
     public string? CompanyName { get; init; }
-    public DateTime? FirstPublished { get; init; }
-    public DateTime? UpdatedAt { get; init; }
+    public DateTimeOffset? FirstPublished { get; init; }
+    public DateTimeOffset? UpdatedAt { get; init; }
     public GreenhouseLocation? Location { get; init; }
     public List<GreenhouseDepartment> Departments { get; init; } = [];
     public List<GreenhouseOffice> Offices { get; init; } = [];

@@ -71,6 +71,13 @@ public sealed class RunIngestionPipeline
             var updated = 0;
             var deduplicated = 0;
 
+            // New canonicals are created alongside their primary job. Each
+            // references the other (PrimaryJobId -> Job, Job.CanonicalJobId ->
+            // CanonicalJob), so they can't be inserted in the same SaveChanges
+            // (circular FK dependency). Collect them and insert in a second save,
+            // after the jobs rows exist.
+            var newCanonicals = new List<(Job job, CanonicalJob canonical)>();
+
             foreach (var raw in rawJobs)
             {
                 var existing = await _dbContext.Jobs
@@ -103,8 +110,10 @@ public sealed class RunIngestionPipeline
                 else
                 {
                     var canonical = CanonicalJob.Create(job);
-                    _dbContext.CanonicalJobs.Add(canonical);
-                    job.AttachToCanonical(canonical.Id);
+                    // The canonical's PrimaryJobId references the new job, and the
+                    // job's CanonicalJobId references the new canonical. The
+                    // back-link (AttachToCanonical) is applied in the second save.
+                    newCanonicals.Add((job, canonical));
                     created++;
                 }
                 // 4. Enrich
@@ -113,7 +122,15 @@ public sealed class RunIngestionPipeline
 
             run.Complete(created, updated, deduplicated);
             provider.MarkSynced(DateTime.UtcNow);
-            // 5. Persist to the database
+            // 5. Persist to the database - jobs/updates first, canonicals second
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            foreach (var (job, canonical) in newCanonicals)
+            {
+                _dbContext.CanonicalJobs.Add(canonical);
+                job.AttachToCanonical(canonical.Id);
+            }
+
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             return ToResult(run);
