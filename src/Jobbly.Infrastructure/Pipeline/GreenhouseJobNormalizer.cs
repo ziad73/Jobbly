@@ -50,7 +50,9 @@ public sealed partial class GreenhouseJobNormalizer : IJobNormalizer
     internal static string DecodeDescription(string? content)
     {
         if (string.IsNullOrWhiteSpace(content))
+        {
             return string.Empty;
+        }
 
         var decoded = WebUtility.HtmlDecode(content) ?? content;
         var stripped = TagRegex().Replace(decoded, " ");

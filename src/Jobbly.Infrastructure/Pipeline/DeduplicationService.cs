@@ -23,7 +23,9 @@ public sealed class DeduplicationService : IDeduplicationService
             .FirstOrDefaultAsync(cancellationToken);
 
         if (match is null)
+        {
             return new DedupResult(false);
+        }
 
         return match.CanonicalJobId is Guid canonicalId
             ? new DedupResult(true, canonicalId)

@@ -150,7 +150,9 @@ public sealed partial class EnrichmentService : IEnrichmentService
             foreach (var (aliases, tag) in TechKeywords)
             {
                 if (matched.Contains(tag))
+                {
                     continue;
+                }
 
                 foreach (var alias in aliases)
                 {
