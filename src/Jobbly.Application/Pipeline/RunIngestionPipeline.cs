@@ -5,10 +5,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Jobbly.Application.Pipeline;
 
-// Orchestrates one end-to-end ingestion run for a single provider:
-// fetch -> normalize -> (within-provider update | cross-provider dedup) -> enrich -> persist.
-// A failure is recorded on the run + provider and returned, never thrown - one
-// broken provider never cascades to the scheduler or other providers.
+// The pipeline has five jobs to do: fetch from a source, normalize, deduplicate across sources, enrich, and save. 
+// Each of those four steps is defined as a port (an interface) — the orchestrator coordinates them, but doesn't
+// know how they work internally.
+
+// The orchestrator handles the full flow including: skip-and-update when the same source posts the same job twice, 
+// record a run in the pipeline_runs table even on failure, and never crash the scheduler if one source breaks.
+
 public sealed class RunIngestionPipeline
 {
     private readonly IJobblyDbContext _dbContext;
@@ -31,6 +34,10 @@ public sealed class RunIngestionPipeline
         _enrichmentService = enrichmentService;
     }
 
+    // Orchestrates one end-to-end ingestion run for a single provider:
+    // fetch -> normalize -> (within-provider update | cross-provider dedup) -> enrich -> persist.
+    // A failure is recorded on the run + provider and returned, never thrown - one
+    // broken provider never cascades to the scheduler or other providers.
     public async Task<PipelineRunResult?> ExecuteAsync(string providerSlug, CancellationToken cancellationToken = default)
     {
         var provider = await _dbContext.Providers
@@ -52,6 +59,7 @@ public sealed class RunIngestionPipeline
 
         try
         {
+            // 1. Fetch raw jobs from the provider's source
             var rawJobs = await connector.FetchAsync(cancellationToken);
             run.RecordFetch(rawJobs.Count);
 
@@ -73,10 +81,10 @@ public sealed class RunIngestionPipeline
                     updated++;
                     continue;
                 }
-
+                // 2. Normalize and update the existing job
                 var job = _normalizer.Normalize(raw, provider.Id);
                 _dbContext.Jobs.Add(job);
-
+                // 3. Deduplicate across providers
                 var dedup = await _deduplicationService.ResolveAsync(job, cancellationToken);
 
                 if (dedup.IsDuplicate && dedup.CanonicalJobId is Guid canonicalId)
@@ -95,13 +103,13 @@ public sealed class RunIngestionPipeline
                     job.AttachToCanonical(canonical.Id);
                     created++;
                 }
-
+                // 4. Enrich
                 _enrichmentService.Enrich(job);
             }
 
             run.Complete(created, updated, deduplicated);
             provider.MarkSynced(DateTime.UtcNow);
-
+            // 5. Persist to the database
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             return ToResult(run);
