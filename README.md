@@ -73,7 +73,7 @@ Design decision: the pipeline runs inside `Jobbly.Api` for v1 (one deployable, d
 Following the phases in [TECHNICAL-DESIGN §4](./docs/TECHNICAL-DESIGN.md#4-delivery-phases):
 
 - [x] **Phase 0 — Foundation**: project structure, domain entities, EF Core + migrations, Postgres FTS groundwork, validated options config, Serilog + ProblemDetails error handling, Docker Compose dev/prod environments
-- [ ] **Phase 1 — Pipeline backbone**: Greenhouse connector end-to-end, normalize → dedup → enrich → index, Hangfire orchestration
+- [x] **Phase 1 — Pipeline backbone**: Greenhouse connector end-to-end (fetch → normalize → dedup → enrich → persist), Hangfire recurring runs, verified against the live Stripe board (594 jobs) via manual trigger
 - [ ] **Phase 2 — Search & discovery MVP**: `GET /api/jobs`, filters, sorting
 - [ ] **Phase 3 — Accounts & profile**
 - [ ] **Phase 4 — Saved jobs/searches & application tracker**
@@ -113,6 +113,14 @@ Once running:
 | `localhost:${POSTGRES_PORT}` | Postgres (host-side access) |
 
 Migrations apply automatically on startup (`DatabaseInitializer`). The API waits for the DB healthcheck before starting.
+
+**Manually run an ingestion pass** (instead of waiting for the Hangfire schedule):
+
+```bash
+curl -X POST http://localhost:${API_PORT}/api/pipeline/trigger/greenhouse
+```
+
+Returns the run summary (jobs fetched/created/updated/deduplicated, status) as JSON; `404` if the provider slug has no active connector.
 
 ### Local dev without Docker
 
