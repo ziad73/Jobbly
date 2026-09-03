@@ -7,16 +7,17 @@ namespace Jobbly.Application.Jobs;
 public sealed record JobSearchQuery
 {
     public string? Q { get; init; }
-    public IReadOnlyList<string>? Tags { get; init; }
+    // string[] so ASP.NET Minimal API can bind repeated ?tags=x&tags=y from the query string.
+    public string[]? Tags { get; init; }
     public SeniorityLevel? Seniority { get; init; }
     public RemoteType? Remote { get; init; }
     public string? Location { get; init; }
     public int? SalaryMin { get; init; }
     public int? SalaryMax { get; init; }
     public string? SalaryCurrency { get; init; }
-    public JobSearchSort Sort { get; init; } = JobSearchSort.Relevance;
-    public int Page { get; init; } = 1;
-    public int PageSize { get; init; } = PageSizeOptions.DefaultPageSize;
+    public JobSearchSort? Sort { get; init; }
+    public int? Page { get; init; }
+    public int? PageSize { get; init; }
 }
 
 public static class PageSizeOptions
