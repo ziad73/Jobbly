@@ -122,6 +122,28 @@ curl -X POST http://localhost:${API_PORT}/api/pipeline/trigger/greenhouse
 
 Returns the run summary (jobs fetched/created/updated/deduplicated, status) as JSON; `404` if the provider slug has no active connector.
 
+**Search and job discovery:**
+
+`GET /api/jobs` returns one listing per deduplicated canonical job, with optional filters:
+
+| Query param | Type | Notes |
+|---|---|---|
+| `q` | string | Full-text search over title/company/description (Postgres tsvector) |
+| `tags` | string[] | Repeatable (`?tags=python&tags=kafka`) — matches the enriched tech stack |
+| `location` | string | Case-insensitive match on job location |
+| `seniority` | enum | `0` (Entry) … `4` (Staff) |
+| `remote` | enum | `1` (Remote), `2` (Hybrid), `3` (OnSite) |
+| `salaryMin` / `salaryMax` / `salaryCurrency` | int / string | Salary filtering |
+| `sort` | enum | `Relevance` (default), `Date`, `Salary` |
+| `page` / `pageSize` | int | Paging (pageSize capped at 100) |
+
+`GET /api/jobs/{canonicalId}` returns the full detail for one job (overview, requirements, salary range, source URL); `404` if not found or archived.
+
+```bash
+curl "http://localhost:${API_PORT}/api/jobs?q=.net&location=london&pageSize=20"
+curl "http://localhost:${API_PORT}/api/jobs/01a06299-e407-7b5d-aab4-203d3c587d65"
+```
+
 ### Local dev without Docker
 
 ```bash

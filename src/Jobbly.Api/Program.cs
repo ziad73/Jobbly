@@ -92,4 +92,7 @@ app.MapGet("temp", () => "Hello, world devvvv");
 // Pipeline endpoints
 app.MapPipelineEndpoints();
 
+// Job discovery endpoints
+app.MapJobEndpoints();
+
 app.Run();

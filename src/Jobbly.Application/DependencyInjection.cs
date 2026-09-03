@@ -1,3 +1,4 @@
+using Jobbly.Application.Jobs;
 using Jobbly.Application.Pipeline;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,6 +11,7 @@ public static class DependencyInjection
         // The ingestion orchestrator is an Application-layer service. Its
         // interfaces are implemented and registered in Infrastructure.
         services.AddScoped<RunIngestionPipeline>();
+        services.AddScoped<JobSearchService>();
 
         return services;
     }

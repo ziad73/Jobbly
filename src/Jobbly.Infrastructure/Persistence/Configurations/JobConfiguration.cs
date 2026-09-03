@@ -114,7 +114,7 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
                     a => a == null ? new Dictionary<string, string>() : new Dictionary<string, string>(a)));
 
         // Full-text search groundwork: generated tsvector -text search vector- over searchable text + GIN index.
-        var searchVector = builder.Property<NpgsqlTsVector>("SearchVector");
+        var searchVector = builder.Property<NpgsqlTsVector>("SearchVector");// {t}ext {s}earch vector column
         searchVector.IsGeneratedTsVectorColumn(
             "english",
             nameof(Job.Title),
@@ -122,7 +122,7 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
             nameof(Job.DescriptionRaw));
 
         builder.HasIndex("SearchVector")
-            .HasMethod("gin");
+            .HasMethod("gin");// Gloabal Inverted Index
     }
 
     private static class JsonOptions

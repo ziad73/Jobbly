@@ -1,4 +1,5 @@
 using Jobbly.Application.Common;
+using Jobbly.Application.Jobs;
 using Jobbly.Application.Pipeline;
 using Jobbly.Infrastructure.Config;
 using Jobbly.Infrastructure.Connectors;
@@ -18,7 +19,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("jobblydb")
-            ?? "Host=localhost;Port=5433;Database=jobbly;Username=my_user;Password=1234";
+            ?? "Host=localhost;Port=5433;Database=jobbly;Username=puser;Password=ppass";
 
         services.AddDbContext<JobblyDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql =>
@@ -48,6 +49,9 @@ public static class DependencyInjection
         services.AddScoped<IJobNormalizer, GreenhouseJobNormalizer>();
         services.AddScoped<IDeduplicationService, DeduplicationService>();
         services.AddScoped<IEnrichmentService, EnrichmentService>();
+
+        // Search port implementation (Npgsql-specific full-text / location)
+        services.AddScoped<IFullTextSearch, PostgresFullTextSearch>();
 
         return services;
     }
