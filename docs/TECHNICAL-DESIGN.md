@@ -53,7 +53,7 @@ Companion to [`PRD.md`](./PRD.md). This document answers **how** we build Jobbly
 | CQRS | MediatR | Clean separation of commands, queries, events |
 | Validation | FluentValidation | Declarative, testable request validation |
 | Mapping | Mapster | Fast, low-ceremony object mapping |
-| API Docs | Swashbuckle + NSwag | OpenAPI spec generation + TypeScript client codegen |
+| API Docs | Microsoft.AspNetCore.OpenApi + Scalar | Built-in OpenAPI spec generation; Scalar UI renders it |
 | Testing | xUnit + Testcontainers | Integration tests against real Postgres instances |
 
 ### 1.3 Infrastructure
