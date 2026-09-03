@@ -108,7 +108,7 @@ Once running:
 
 | URL | What |
 |---|---|
-| `http://localhost:${API_PORT}/scalar/v1` | Scalar API UI (dev only) |
+| `http://localhost:${API_PORT}/scalar/v1` | Scalar API UI (dev only) — each endpoint carries a name, summary, and description in the spec |
 | `http://localhost:${API_PORT}/openapi/v1.yaml` | OpenAPI spec (dev only) |
 | `localhost:${POSTGRES_PORT}` | Postgres (host-side access) |
 
