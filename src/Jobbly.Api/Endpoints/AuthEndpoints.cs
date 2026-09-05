@@ -11,10 +11,22 @@ public static class AuthEndpoints
         group.MapPost("/register",
             async (RegisterRequest request, IAuthService auth, CancellationToken ct) =>
             {
-                var response = await auth.RegisterAsync(request, ct);
-                return response is null
-                    ? Results.Conflict(new { message = "A user with this email already exists." })
-                    : Results.Created("/api/users/me", response);
+                var attempt = await auth.RegisterAsync(request, ct);
+
+                if (attempt.Response is { } response)
+                {
+                    return Results.Created("/api/users/me", response);
+                }
+
+                return attempt.Failure switch
+                {
+                    RegisterFailureKind.EmailTaken =>
+                        Results.Conflict(new { message = "A user with this email already exists." }),
+                    _ => Results.ValidationProblem(attempt.Errors?
+                        .GroupBy(e => e.StartsWith("Email", StringComparison.Ordinal) ? "Email" : "Password")
+                        .ToDictionary(g => g.Key, g => g.ToArray())
+                        ?? new Dictionary<string, string[]>()),
+                };
             })
             .WithName("RegisterUser")
             .WithSummary("Create a user account")

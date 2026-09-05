@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Jobbly.Api.Authentication;
 using Jobbly.Application.Pipeline;
 
@@ -8,7 +9,7 @@ public static class PipelineEndpoints
     public static WebApplication MapPipelineEndpoints(this WebApplication app)
     {
         app.MapPost("/api/pipeline/trigger/{providerSlug}",
-            async (string providerSlug, RunIngestionPipeline pipeline, CancellationToken ct) =>
+            async ([Length(1, 100)] string providerSlug, RunIngestionPipeline pipeline, CancellationToken ct) =>
             {
                 var result = await pipeline.ExecuteAsync(providerSlug, ct);
                 return result is null

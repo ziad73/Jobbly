@@ -17,11 +17,11 @@ public sealed class AuthService(
 {
     private readonly JwtOptions _jwtOptions = options.Value;
 
-    public async Task<AuthResponse?> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
+    public async Task<RegisterAttempt> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
         if (await userManager.FindByEmailAsync(request.Email) is not null)
         {
-            return null;
+            return RegisterAttempt.EmailTaken();
         }
 
         var user = ApplicationUser.Create(request.Email, request.FullName);
@@ -29,7 +29,9 @@ public sealed class AuthService(
         var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
-            return null;
+            // Real validation messages (e.g. password policy) so the API can
+            // return a 400 instead of a misleading "email already exists".
+            return RegisterAttempt.Invalid(result.Errors.Select(e => e.Description).ToList());
         }
 
         // Everyone starts with the User role (elevated Admin is assigned manually).
@@ -39,7 +41,7 @@ public sealed class AuthService(
         dbContext.UserProfiles.Add(UserProfile.Create(user.Id));
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return await IssueTokenPairAsync(user, cancellationToken);
+        return RegisterAttempt.Succeeded(await IssueTokenPairAsync(user, cancellationToken));
     }
 
     public async Task<AuthResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)

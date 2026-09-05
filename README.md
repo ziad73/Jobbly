@@ -136,7 +136,8 @@ Returns the run summary (jobs fetched/created/updated/deduplicated, status) as J
 | `remote` | enum | `1` (Remote), `2` (Hybrid), `3` (OnSite) |
 | `salaryMin` / `salaryMax` / `salaryCurrency` | int / string | Salary filtering |
 | `sort` | enum | `Relevance` (default), `Date`, `Salary` |
-| `page` / `pageSize` | int | Paging (pageSize capped at 100) |
+| `page` / `pageSize` | int | Paging (`page` ≥ 1, `pageSize` 1–100) |
+| — (all) | — | Invalid values (bad enums, out-of-range paging, malformed email) return `400` with ProblemDetails |
 
 `GET /api/jobs/{canonicalId}` returns the full detail for one job (overview, requirements, salary range, source URL); `404` if not found or archived.
 

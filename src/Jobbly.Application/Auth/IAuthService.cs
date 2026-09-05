@@ -6,8 +6,10 @@ namespace Jobbly.Application.Auth;
 /// </summary>
 public interface IAuthService
 {
-    /// <summary>Creates a user + 1:1 profile and returns a token pair (null = email taken).</summary>
-    Task<AuthResponse?> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Creates a user + 1:1 profile and returns a token pair. The result
+    /// distinguishes a duplicate email from other failures (e.g. weak password),
+    /// which carry Identity's validation messages.</summary>
+    Task<RegisterAttempt> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>Verifies credentials and returns a token pair (null = invalid credentials).</summary>
     Task<AuthResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
