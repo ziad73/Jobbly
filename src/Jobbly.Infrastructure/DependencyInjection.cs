@@ -32,11 +32,16 @@ public static class DependencyInjection
                 npgsql.MigrationsAssembly(typeof(JobblyDbContext).Assembly.FullName)));
 
         // ASP.NET Core Identity backed by the same Postgres database.
-        // Roles are enabled at the store level (token issuance reads them), but no
-        // roles are seeded or assigned yet - the authorization pass wires those in.
+        // Roles are enabled at the store level; User/Admin are seeded at startup
+        // and "User" is assigned on registration (see DatabaseInitializer/AuthService).
         services.AddIdentityCore<ApplicationUser>(options =>
             {
                 options.User.RequireUniqueEmail = true;
+                options.Password.RequiredLength = 8;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequireLowercase = false;
+                options.Password.RequireDigit = false;
             })
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<JobblyDbContext>();
