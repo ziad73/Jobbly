@@ -144,6 +144,25 @@ curl "http://localhost:${API_PORT}/api/jobs?q=.net&location=london&pageSize=20"
 curl "http://localhost:${API_PORT}/api/jobs/01a06299-e407-7b5d-aab4-203d3c587d65"
 ```
 
+**Accounts & own-profile (Identity — credentials only, tokens come later):**
+
+| Endpoint | Body | Notes |
+|---|---|---|
+| `POST /api/auth/register` | `{email, password, fullName}` | Creates the user **and** their 1:1 profile |
+| `POST /api/auth/login` | `{email, password}` | Verifies credentials; token issuance lands in a later pass |
+| `POST /api/auth/logout` | — | Placeholder until JWT revocation |
+| `GET /api/users/me?userId=…` | — | Current profile (userId is temp until bearer auth) |
+| `PUT /api/users/me/profile?userId=…` | profile fields | Partial update; enum fields take numeric values |
+| `PUT /api/users/me/skills?userId=…` | `{skills:[…]}` | Replaces the whole skill set (deduped) |
+
+```bash
+curl -X POST "http://localhost:${API_PORT}/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"Str0ng!Pass","fullName":"You"}'
+```
+
+Auth uses ASP.NET Core Identity (`AspNetUsers` etc.) backed by the same Postgres DB; `user_profiles` and `user_skills` are 1:1/first-class tables of their own. Job search and pipeline endpoints stay public — no login wall.
+
 ### Local dev without Docker
 
 ```bash
