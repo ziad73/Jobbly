@@ -100,12 +100,16 @@ Jobbly.sln
 │   │   │   └── JobblyDbContext.cs         # implements IJobblyDbContext — EF Core + Npgsql
 │   │   ├── BackgroundJobs/
 │   │   │   └── HangfireIngestionScheduler.cs
-│   │   ├── Caching/                       # Redis
-│   │   └── Storage/                       # R2 (v2 — resume uploads)
+│   │   ├── Auth/                           # AuthService (IAuthService), JWT + refresh token store
+│   │   ├── Identity/                       # ApplicationUser, ApplicationRoles
+│   │   ├── Caching/                        # Redis
+│   │   └── Storage/                        # R2 (v2 — resume uploads)
 │   │
 │   └── Jobbly.Api/                        # Minimal API endpoints, composition root
 │       ├── Endpoints/                     # Jobs, Users, Search, Auth
-│       ├── Middleware/                    # Auth, rate limiting, error handling
+│       ├── Authentication/                # JWT bearer config, authorization policies, Hangfire admin gate
+│       ├── OpenApi/                       # OpenAPI security scheme + per-operation transformers
+│       ├── Middleware/                    # Error handling (ProblemDetails), validation
 │       └── Program.cs                     # DI wiring — the only place concrete types meet interfaces
 │
 ├── web/                                   # Next.js frontend (npm workspace)
@@ -328,8 +332,9 @@ The pipeline and searchable job catalog come before advanced user features.
 **Goal:** Add user identity and persistent preferences without blocking public browsing.
 
 **Scope**
-- Tables: `users`, `user_profiles`, `user_skills`
-- Auth: register, login, refresh token, optional Google OAuth
+- Tables: Identity (`AspNet*` via ASP.NET Core Identity), `user_profiles`, `user_skills`, `refresh_tokens`
+- Auth: register, login, refresh token (rotation + reuse detection), logout; Google OAuth deferred
+- Roles & authorization: `User` (auto on registration), `Admin` (manual); `/api/users/me*` authenticated-only, ingestion trigger + Hangfire dashboard admin-gated
 - Profile endpoints and fields (title, seniority, experience, stack, locations, remote pref, salary expectation)
 - Keep job search public
 
@@ -401,13 +406,18 @@ erDiagram
     string password_hash
     string full_name
     string avatar_url
-    string auth_provider
-    string auth_provider_id
     boolean email_verified
-    string refresh_token
-    timestamp refresh_token_expires_at
     timestamp created_at
     timestamp updated_at
+  }
+
+  refresh_tokens {
+    uuid id PK
+    uuid user_id FK
+    string token_hash
+    timestamp expires_at
+    timestamp revoked_at
+    uuid replaced_by_token_id FK
   }
 
   user_profiles {
@@ -541,6 +551,7 @@ erDiagram
   users ||--o{ user_skills : "has"
   users ||--o{ saved_jobs : "saves"
   users ||--o{ saved_searches : "saves"
+  users ||--o{ refresh_tokens : "holds"
   canonical_jobs ||--o{ jobs : "groups"
   canonical_jobs ||--o{ saved_jobs : "bookmarked as"
   jobs }o--|| providers : "fetched from"
@@ -553,7 +564,8 @@ erDiagram
 - The schema models both raw provider jobs (`jobs`) and deduplicated aggregate jobs (`canonical_jobs`).
 - Saved jobs and saved searches anchor to `canonical_jobs`, not provider-specific `jobs`.
 - `preferred_locations`, `tech_stack`, `requirements`, and `nice_to_haves` are `jsonb` — they represent arrays in the canonical schema.
-- `users` carries `refresh_token` / `refresh_token_expires_at` for JWT refresh auth (7-day httpOnly cookie). Tokens stored hashed at rest.
+- User auth is backed by ASP.NET Core Identity (`AspNetUsers`, `AspNetRoles`, `AspNetUserRoles`, …), with two seeded roles: `User` (assigned on registration) and `Admin` (manual, gates the ingestion trigger + Hangfire dashboard). User data lives in Identity's `AspNet*` tables rather than the legacy `users` row above.
+- Refresh tokens (JWT refresh auth, 7 days) live in a dedicated `refresh_tokens` table, stored **hashed** (SHA-256) at rest. They are **rotated** on each refresh (old revoked, replacement chained via `replaced_by_token_id`); replaying a revoked token is treated as a stolen session and revokes **all** of that user's active tokens.
 - `canonical_jobs` includes `is_archived`/`archived_at` for the 30-day stale-listing auto-archive SLA; archived jobs are soft-deleted and excluded from the main feed.
 - `providers` includes `last_error` and `consecutive_failures` for provider health (Polly circuit-breaker support).
 - `pipeline_runs` includes `provider_slug` (denormalized) and `retry_count` to track Hangfire retry attempts.
@@ -568,8 +580,9 @@ erDiagram
 - Protocol: `HTTPS`
 - Payload: `JSON`
 - Standard: `OpenAPI / Swagger`
-- Auth: JWT access token (15 min) + refresh token (7 days) in httpOnly cookie
+- Auth: JWT access token (15 min) — sent as `Authorization: Bearer …` — plus opaque refresh tokens (7 days) returned in the response body and presented to `/api/auth/refresh`. Role claims keep the JWT name `role` (`TokenValidationParameters.RoleClaimType = "role"`, no inbound claim remapping) so `RequireRole`/`IsInRole` match directly.
 - **Search endpoints are public** — no auth required to browse
+- `/api/users/me*` are authenticated-only; the ingestion trigger and Hangfire dashboard require the `Admin` role
 
 ### 6.2 Endpoints by Feature
 
@@ -599,16 +612,17 @@ Query parameters:
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/auth/register` | Register with email + password |
-| `POST` | `/api/auth/login` | Login, returns session tokens |
-| `POST` | `/api/auth/refresh` | Rotate refresh token |
-| `GET` | `/api/auth/google` | Google OAuth flow |
+| `POST` | `/api/auth/register` | Register with email + password; user starts with the `User` role |
+| `POST` | `/api/auth/login` | Login, returns token pair + user |
+| `POST` | `/api/auth/refresh` | Rotate refresh token (returns a new pair) |
+| `POST` | `/api/auth/logout` | Revoke a refresh token |
+| `GET` | `/api/auth/google` | Google OAuth flow *(deferred)* |
 
-#### User Profile
+#### User Profile (requires a valid bearer token)
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/users/me` | Current user profile |
+| `GET` | `/api/users/me` | Current user's profile (resolved from token's `sub` claim) |
 | `PUT` | `/api/users/me/profile` | Update profile fields |
 | `PUT` | `/api/users/me/skills` | Replace tech stack / skills |
 
@@ -743,7 +757,7 @@ Extends the listing model with:
 | Data in transit | TLS 1.3 enforced |
 | Data at rest | Encrypted at the storage layer |
 | Password storage | PBKDF2 + salt via ASP.NET Core Identity |
-| Session tokens | JWT (15 min) + refresh token in httpOnly cookie (7 days) |
+| Session tokens | JWT access (15 min) + opaque refresh token (7 days), stored **hashed** (SHA-256) in `refresh_tokens`, **rotated** on refresh; replaying a revoked token revokes all active sessions |
 | User rights | GDPR — right to access + right to delete (soft delete + purge job) |
 | Data sharing | No user data sold or shared with employers or third parties |
 

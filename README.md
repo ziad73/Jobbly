@@ -28,7 +28,7 @@ v1 scope deliberately excludes AI matching, alerts, and resume analysis — thos
 | Database | PostgreSQL 16 (EF Core + Npgsql) |
 | Search | Postgres full-text (`tsvector` generated column + GIN index) — Elasticsearch later if scale demands it |
 | Background jobs | Hangfire (ingestion pipeline scheduling, dashboard, retries) |
-| Auth | JWT access + refresh tokens (httpOnly cookie), Google OAuth *(Phase 3, later)*; roles `User` + `Admin` |
+| Auth | JWT access (15 min, `Authorization: Bearer`) + opaque refresh tokens (7 days, hashed at rest, rotated on refresh); Google OAuth *(deferred)*; roles `User` + `Admin` |
 | Containerization | Docker / Docker Compose |
 
 ---
@@ -75,7 +75,7 @@ Following the phases in [TECHNICAL-DESIGN §4](./docs/TECHNICAL-DESIGN.md#4-deli
 - [x] **Phase 0 — Foundation**: project structure, domain entities, EF Core + migrations, Postgres FTS groundwork, validated options config, Serilog + ProblemDetails error handling, Docker Compose dev/prod environments
 - [x] **Phase 1 — Pipeline backbone**: Greenhouse connector end-to-end (fetch → normalize → dedup → enrich → persist), Hangfire recurring runs, verified against the live Stripe board (594 jobs) via manual trigger
 - [ ] **Phase 2 — Search & discovery MVP**: `GET /api/jobs`, filters, sorting
-- [ ] **Phase 3 — Accounts & profile**
+- [x] **Phase 3 — Accounts & profile**: Identity (email/password), JWT access + refresh (rotation, reuse detection), `User`/`Admin` roles, `/api/users/me*` authenticated-only, `/api/pipeline/trigger` + `/hangfire` admin-gated
 - [ ] **Phase 4 — Saved jobs/searches & application tracker**
 - [ ] **Phase 5 — Expand coverage & harden**
 
