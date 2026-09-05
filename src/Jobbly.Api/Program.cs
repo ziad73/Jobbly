@@ -95,4 +95,10 @@ app.MapPipelineEndpoints();
 // Job discovery endpoints
 app.MapJobEndpoints();
 
+// Auth endpoints (register / login / logout)
+app.MapAuthEndpoints();
+
+// Own-profile endpoints (GET/PUT /api/users/me)
+app.MapUserEndpoints();
+
 app.Run();
