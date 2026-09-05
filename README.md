@@ -28,7 +28,7 @@ v1 scope deliberately excludes AI matching, alerts, and resume analysis — thos
 | Database | PostgreSQL 16 (EF Core + Npgsql) |
 | Search | Postgres full-text (`tsvector` generated column + GIN index) — Elasticsearch later if scale demands it |
 | Background jobs | Hangfire (ingestion pipeline scheduling, dashboard, retries) |
-| Auth | JWT access + refresh tokens (httpOnly cookie), Google OAuth *(Phase 3)* |
+| Auth | JWT access (15 min, `Authorization: Bearer`) + opaque refresh tokens (7 days, hashed at rest, rotated on refresh); Google OAuth *(deferred)*; roles `User` + `Admin` |
 | Containerization | Docker / Docker Compose |
 
 ---
@@ -75,7 +75,7 @@ Following the phases in [TECHNICAL-DESIGN §4](./docs/TECHNICAL-DESIGN.md#4-deli
 - [x] **Phase 0 — Foundation**: project structure, domain entities, EF Core + migrations, Postgres FTS groundwork, validated options config, Serilog + ProblemDetails error handling, Docker Compose dev/prod environments
 - [x] **Phase 1 — Pipeline backbone**: Greenhouse connector end-to-end (fetch → normalize → dedup → enrich → persist), Hangfire recurring runs, verified against the live Stripe board (594 jobs) via manual trigger
 - [ ] **Phase 2 — Search & discovery MVP**: `GET /api/jobs`, filters, sorting
-- [ ] **Phase 3 — Accounts & profile**
+- [x] **Phase 3 — Accounts & profile**: Identity (email/password), JWT access + refresh (rotation, reuse detection), `User`/`Admin` roles, `/api/users/me*` authenticated-only, `/api/pipeline/trigger` + `/hangfire` admin-gated
 - [ ] **Phase 4 — Saved jobs/searches & application tracker**
 - [ ] **Phase 5 — Expand coverage & harden**
 
@@ -114,13 +114,14 @@ Once running:
 
 Migrations apply automatically on startup (`DatabaseInitializer`). The API waits for the DB healthcheck before starting.
 
-**Manually run an ingestion pass** (instead of waiting for the Hangfire schedule):
+**Manually run an ingestion pass** (instead of waiting for the Hangfire schedule) — requires the **Admin** role:
 
 ```bash
-curl -X POST http://localhost:${API_PORT}/api/pipeline/trigger/greenhouse
+curl -X POST http://localhost:${API_PORT}/api/pipeline/trigger/greenhouse \
+  -H "Authorization: Bearer <admin-access-token>"
 ```
 
-Returns the run summary (jobs fetched/created/updated/deduplicated, status) as JSON; `404` if the provider slug has no active connector.
+Returns the run summary (jobs fetched/created/updated/deduplicated, status) as JSON; `404` if the provider slug has no active connector, `401` without a token, `403` for non-admins.
 
 **Search and job discovery:**
 
@@ -135,7 +136,8 @@ Returns the run summary (jobs fetched/created/updated/deduplicated, status) as J
 | `remote` | enum | `1` (Remote), `2` (Hybrid), `3` (OnSite) |
 | `salaryMin` / `salaryMax` / `salaryCurrency` | int / string | Salary filtering |
 | `sort` | enum | `Relevance` (default), `Date`, `Salary` |
-| `page` / `pageSize` | int | Paging (pageSize capped at 100) |
+| `page` / `pageSize` | int | Paging (`page` ≥ 1, `pageSize` 1–100) |
+| — (all) | — | Invalid values (bad enums, out-of-range paging, malformed email) return `400` with ProblemDetails |
 
 `GET /api/jobs/{canonicalId}` returns the full detail for one job (overview, requirements, salary range, source URL); `404` if not found or archived.
 
@@ -143,6 +145,36 @@ Returns the run summary (jobs fetched/created/updated/deduplicated, status) as J
 curl "http://localhost:${API_PORT}/api/jobs?q=.net&location=london&pageSize=20"
 curl "http://localhost:${API_PORT}/api/jobs/01a06299-e407-7b5d-aab4-203d3c587d65"
 ```
+
+**Accounts & auth (ASP.NET Core Identity + JWT):**
+
+| Endpoint | Body | Notes |
+|---|---|---|
+| `POST /api/auth/register` | `{email, password, fullName}` | Creates the user **and** their 1:1 profile; returns a token pair |
+| `POST /api/auth/login` | `{email, password}` | Returns a token pair |
+| `POST /api/auth/refresh` | `{refreshToken}` | Rotates the refresh token (old one is revoked) and returns a new pair |
+| `POST /api/auth/logout` | `{refreshToken}` | Revokes that refresh token |
+| `GET /api/users/me` | — | Current profile; requires a bearer token (caller resolved from its `sub` claim) |
+| `PUT /api/users/me/profile` | profile fields | Partial update; enum fields take numeric values; requires a bearer token |
+| `PUT /api/users/me/skills` | `{skills:[…]}` | Replaces the whole skill set (deduped); requires a bearer token |
+
+Every auth response looks like `{accessToken, refreshToken, expiresInSeconds, user}` — the access token is a signed JWT (15 min, HS256) validated against `JwtSettings`; send it as `Authorization: Bearer …`. Refresh tokens are opaque, stored **hashed** (SHA-256) in the `refresh_tokens` table, and rotated on each refresh. Replaying a revoked refresh token is treated as a stolen session and revokes **all** of that user's active tokens.
+
+```bash
+curl -X POST "http://localhost:${API_PORT}/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"Str0ng!Pass","fullName":"You"}'
+# then: curl -X POST .../api/auth/refresh -d "{\"refreshToken\":\"…\"}"
+```
+
+Auth uses ASP.NET Core Identity (`AspNetUsers` etc.) backed by the same Postgres DB; `user_profiles`, `user_skills` and `refresh_tokens` are tables of their own. `JwtSettings:Key` must be a dev secret (≥32 chars — a generated one is baked into `appsettings.json` for local demo).
+
+**Roles & authorization:**
+
+- Two roles, seeded on startup: **`User`** (assigned automatically at registration) and **`Admin`** (assigned manually).
+- `/api/users/me*` require any authenticated user (`401` without a token). Job search (`/api/jobs`) and the auth endpoints stay public.
+- The **ingestion trigger** and the **Hangfire dashboard** (`/hangfire`, dev only) require the `Admin` role (`403` otherwise).
+- Role claims ride in the JWT as `role` and are matched via `TokenValidationParameters.RoleClaimType` (no inbound claim remapping). The OpenAPI spec marks secured operations with a `bearerAuth` security requirement so Scalar prompts for a token.
 
 ### Local dev without Docker
 

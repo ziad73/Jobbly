@@ -1,10 +1,16 @@
+using Jobbly.Application.Auth;
 using Jobbly.Application.Common;
 using Jobbly.Application.Jobs;
 using Jobbly.Application.Pipeline;
+using Jobbly.Application.Users;
+using Jobbly.Infrastructure.Auth;
 using Jobbly.Infrastructure.Config;
 using Jobbly.Infrastructure.Connectors;
+using Jobbly.Infrastructure.Identity;
 using Jobbly.Infrastructure.Persistence;
 using Jobbly.Infrastructure.Pipeline;
+using Jobbly.Infrastructure.Users;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +30,21 @@ public static class DependencyInjection
         services.AddDbContext<JobblyDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql =>
                 npgsql.MigrationsAssembly(typeof(JobblyDbContext).Assembly.FullName)));
+
+        // ASP.NET Core Identity backed by the same Postgres database.
+        // Roles are enabled at the store level; User/Admin are seeded at startup
+        // and "User" is assigned on registration (see DatabaseInitializer/AuthService).
+        services.AddIdentityCore<ApplicationUser>(options =>
+            {
+                options.User.RequireUniqueEmail = true;
+                options.Password.RequiredLength = 8;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequireLowercase = false;
+                options.Password.RequireDigit = false;
+            })
+            .AddRoles<IdentityRole<Guid>>()
+            .AddEntityFrameworkStores<JobblyDbContext>();
 
         services.AddScoped<IJobblyDbContext>(sp => sp.GetRequiredService<JobblyDbContext>());
 
@@ -52,6 +73,12 @@ public static class DependencyInjection
 
         // Search port implementation (Npgsql-specific full-text / location)
         services.AddScoped<IFullTextSearch, PostgresFullTextSearch>();
+
+        // Auth + own-profile services
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddScoped<RefreshTokenStore>();
+        services.AddScoped<IUserProfileService, UserProfileService>();
 
         return services;
     }

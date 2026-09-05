@@ -6,6 +6,8 @@ using Jobbly.Api.Middleware;
 using Jobbly.Application;
 using Jobbly.Infrastructure;
 using Jobbly.Infrastructure.BackgroundJobs;
+using Jobbly.Api.Authentication;
+using Jobbly.Api.OpenApi;
 using Jobbly.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -16,7 +18,17 @@ var builder = WebApplication.CreateBuilder(args);
 // Register Services into DI
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddOpenApi();
+
+// Register JWT bearer authentication and authorization policies into DI container
+builder.Services.AddApiAuthentication(builder.Configuration);
+builder.Services.AddApiAuthorization();
+
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+    options.AddOperationTransformer<AuthOperationTransformer>();
+});
+
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 // Enables automatic validation for all Minimal API endpoints
@@ -57,9 +69,6 @@ app.UseExceptionHandler();
 // Exception handling middleware
 if (app.Environment.IsDevelopment())
 {
-    // Hangfire dashboard — dev only; real auth is gated in a later phase.
-    app.UseHangfireDashboard("/hangfire");
-
     // OpenAPI spec file
     app.MapOpenApi("/openapi/v1.yaml");// backend endpoint generator. It compiles your C# endpoints/models into a raw OpenAPI specification file
 
@@ -83,8 +92,22 @@ app.UseSerilogRequestLogging();
 // app.UseCors();
 // app.UseCors("Frontend");// Apply CORS policy globally on all endpoints
 
-// app.UseAuthentication();
-// app.UseAuthorization(); // validates access permissions for the current authenticated user.
+// Authentication: validates a presented bearer token.
+app.UseAuthentication();
+
+// Authorization: enforces RequireAuthorization on top of the authenticated identity.
+app.UseAuthorization();
+
+// Hangfire dashboard — dev only, Admin role only. Declared after the auth
+// middleware so the bearer token populates the request identity first.
+if (app.Environment.IsDevelopment())
+{
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        // restricts access to the Hangfire dashboard to users, admin only
+        Authorization = [new HangfireDashboardAuthorizationFilter()]
+    });
+}
 
 // Hello, world
 app.MapGet("temp", () => "Hello, world devvvv");
@@ -94,5 +117,11 @@ app.MapPipelineEndpoints();
 
 // Job discovery endpoints
 app.MapJobEndpoints();
+
+// Auth endpoints (register / login / logout)
+app.MapAuthEndpoints();
+
+// Own-profile endpoints (GET/PUT /api/users/me)
+app.MapUserEndpoints();
 
 app.Run();
