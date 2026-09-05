@@ -6,6 +6,8 @@ using Jobbly.Api.Middleware;
 using Jobbly.Application;
 using Jobbly.Infrastructure;
 using Jobbly.Infrastructure.BackgroundJobs;
+using Jobbly.Api.Authentication;
+using Jobbly.Api.OpenApi;
 using Jobbly.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -16,7 +18,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Register Services into DI
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddOpenApi();
+builder.Services.AddApiAuthentication(builder.Configuration);
+builder.Services.AddOpenApi(options =>
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 // Enables automatic validation for all Minimal API endpoints
@@ -83,7 +87,9 @@ app.UseSerilogRequestLogging();
 // app.UseCors();
 // app.UseCors("Frontend");// Apply CORS policy globally on all endpoints
 
-// app.UseAuthentication();
+// Authentication: validates a presented bearer token. No authorization yet -
+// UseAuthorization() + per-endpoint RequireAuthorization land in the authz pass.
+app.UseAuthentication();
 // app.UseAuthorization(); // validates access permissions for the current authenticated user.
 
 // Hello, world
