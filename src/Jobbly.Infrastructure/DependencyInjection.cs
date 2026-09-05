@@ -32,11 +32,13 @@ public static class DependencyInjection
                 npgsql.MigrationsAssembly(typeof(JobblyDbContext).Assembly.FullName)));
 
         // ASP.NET Core Identity backed by the same Postgres database.
-        // No roles/claims/tokens yet - the bearer-token pass wires those in.
+        // Roles are enabled at the store level (token issuance reads them), but no
+        // roles are seeded or assigned yet - the authorization pass wires those in.
         services.AddIdentityCore<ApplicationUser>(options =>
             {
                 options.User.RequireUniqueEmail = true;
             })
+            .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<JobblyDbContext>();
 
         services.AddScoped<IJobblyDbContext>(sp => sp.GetRequiredService<JobblyDbContext>());
@@ -69,6 +71,8 @@ public static class DependencyInjection
 
         // Auth + own-profile services
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddScoped<RefreshTokenStore>();
         services.AddScoped<IUserProfileService, UserProfileService>();
 
         return services;
