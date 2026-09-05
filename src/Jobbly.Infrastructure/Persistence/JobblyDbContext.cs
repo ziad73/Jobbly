@@ -17,6 +17,7 @@ public sealed class JobblyDbContext(DbContextOptions<JobblyDbContext> options)
     public DbSet<PipelineRun> PipelineRuns => Set<PipelineRun>();
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<UserSkill> UserSkills => Set<UserSkill>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

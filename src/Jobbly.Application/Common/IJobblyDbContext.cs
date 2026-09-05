@@ -15,6 +15,7 @@ public interface IJobblyDbContext
     DbSet<PipelineRun> PipelineRuns { get; }
     DbSet<UserProfile> UserProfiles { get; }
     DbSet<UserSkill> UserSkills { get; }
+    DbSet<RefreshToken> RefreshTokens { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
