@@ -1,10 +1,16 @@
+using Jobbly.Application.Auth;
 using Jobbly.Application.Common;
 using Jobbly.Application.Jobs;
 using Jobbly.Application.Pipeline;
+using Jobbly.Application.Users;
+using Jobbly.Infrastructure.Auth;
 using Jobbly.Infrastructure.Config;
 using Jobbly.Infrastructure.Connectors;
+using Jobbly.Infrastructure.Identity;
 using Jobbly.Infrastructure.Persistence;
 using Jobbly.Infrastructure.Pipeline;
+using Jobbly.Infrastructure.Users;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +30,14 @@ public static class DependencyInjection
         services.AddDbContext<JobblyDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql =>
                 npgsql.MigrationsAssembly(typeof(JobblyDbContext).Assembly.FullName)));
+
+        // ASP.NET Core Identity backed by the same Postgres database.
+        // No roles/claims/tokens yet - the bearer-token pass wires those in.
+        services.AddIdentityCore<ApplicationUser>(options =>
+            {
+                options.User.RequireUniqueEmail = true;
+            })
+            .AddEntityFrameworkStores<JobblyDbContext>();
 
         services.AddScoped<IJobblyDbContext>(sp => sp.GetRequiredService<JobblyDbContext>());
 
@@ -52,6 +66,10 @@ public static class DependencyInjection
 
         // Search port implementation (Npgsql-specific full-text / location)
         services.AddScoped<IFullTextSearch, PostgresFullTextSearch>();
+
+        // Auth + own-profile services
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserProfileService, UserProfileService>();
 
         return services;
     }
