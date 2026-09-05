@@ -144,24 +144,28 @@ curl "http://localhost:${API_PORT}/api/jobs?q=.net&location=london&pageSize=20"
 curl "http://localhost:${API_PORT}/api/jobs/01a06299-e407-7b5d-aab4-203d3c587d65"
 ```
 
-**Accounts & own-profile (Identity — credentials only, tokens come later):**
+**Accounts & auth (ASP.NET Core Identity + JWT):**
 
 | Endpoint | Body | Notes |
 |---|---|---|
-| `POST /api/auth/register` | `{email, password, fullName}` | Creates the user **and** their 1:1 profile |
-| `POST /api/auth/login` | `{email, password}` | Verifies credentials; token issuance lands in a later pass |
-| `POST /api/auth/logout` | — | Placeholder until JWT revocation |
-| `GET /api/users/me?userId=…` | — | Current profile (userId is temp until bearer auth) |
+| `POST /api/auth/register` | `{email, password, fullName}` | Creates the user **and** their 1:1 profile; returns a token pair |
+| `POST /api/auth/login` | `{email, password}` | Returns a token pair |
+| `POST /api/auth/refresh` | `{refreshToken}` | Rotates the refresh token (old one is revoked) and returns a new pair |
+| `POST /api/auth/logout` | `{refreshToken}` | Revokes that refresh token |
+| `GET /api/users/me?userId=…` | — | Current profile (userId is temp until the authorization pass) |
 | `PUT /api/users/me/profile?userId=…` | profile fields | Partial update; enum fields take numeric values |
 | `PUT /api/users/me/skills?userId=…` | `{skills:[…]}` | Replaces the whole skill set (deduped) |
+
+Every auth response looks like `{accessToken, refreshToken, expiresInSeconds, user}` — the access token is a signed JWT (15 min, HS256) validated against `JwtSettings`; send it as `Authorization: Bearer …`. Refresh tokens are opaque, stored **hashed** (SHA-256) in the `refresh_tokens` table, and rotated on each refresh. Replaying a revoked refresh token is treated as a stolen session and revokes **all** of that user's active tokens.
 
 ```bash
 curl -X POST "http://localhost:${API_PORT}/api/auth/register" \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com","password":"Str0ng!Pass","fullName":"You"}'
+# then: curl -X POST .../api/auth/refresh -d "{\"refreshToken\":\"…\"}"
 ```
 
-Auth uses ASP.NET Core Identity (`AspNetUsers` etc.) backed by the same Postgres DB; `user_profiles` and `user_skills` are 1:1/first-class tables of their own. Job search and pipeline endpoints stay public — no login wall.
+Auth uses ASP.NET Core Identity (`AspNetUsers` etc.) backed by the same Postgres DB; `user_profiles`, `user_skills` and `refresh_tokens` are tables of their own. `JwtSettings:Key` must be a dev secret (≥32 chars — a generated one is baked into `appsettings.json` for local demo). Job search and pipeline endpoints stay public — no login wall. Bearer validation is wired (`UseAuthentication`); endpoint authorization guards land in a later pass.
 
 ### Local dev without Docker
 
