@@ -28,7 +28,7 @@ v1 scope deliberately excludes AI matching, alerts, and resume analysis — thos
 | Database | PostgreSQL 16 (EF Core + Npgsql) |
 | Search | Postgres full-text (`tsvector` generated column + GIN index) — Elasticsearch later if scale demands it |
 | Background jobs | Hangfire (ingestion pipeline scheduling, dashboard, retries) |
-| Auth | JWT access + refresh tokens (httpOnly cookie), Google OAuth *(Phase 3)* |
+| Auth | JWT access + refresh tokens (httpOnly cookie), Google OAuth *(Phase 3, later)*; roles `User` + `Admin` |
 | Containerization | Docker / Docker Compose |
 
 ---
@@ -114,13 +114,14 @@ Once running:
 
 Migrations apply automatically on startup (`DatabaseInitializer`). The API waits for the DB healthcheck before starting.
 
-**Manually run an ingestion pass** (instead of waiting for the Hangfire schedule):
+**Manually run an ingestion pass** (instead of waiting for the Hangfire schedule) — requires the **Admin** role:
 
 ```bash
-curl -X POST http://localhost:${API_PORT}/api/pipeline/trigger/greenhouse
+curl -X POST http://localhost:${API_PORT}/api/pipeline/trigger/greenhouse \
+  -H "Authorization: Bearer <admin-access-token>"
 ```
 
-Returns the run summary (jobs fetched/created/updated/deduplicated, status) as JSON; `404` if the provider slug has no active connector.
+Returns the run summary (jobs fetched/created/updated/deduplicated, status) as JSON; `404` if the provider slug has no active connector, `401` without a token, `403` for non-admins.
 
 **Search and job discovery:**
 
@@ -152,9 +153,9 @@ curl "http://localhost:${API_PORT}/api/jobs/01a06299-e407-7b5d-aab4-203d3c587d65
 | `POST /api/auth/login` | `{email, password}` | Returns a token pair |
 | `POST /api/auth/refresh` | `{refreshToken}` | Rotates the refresh token (old one is revoked) and returns a new pair |
 | `POST /api/auth/logout` | `{refreshToken}` | Revokes that refresh token |
-| `GET /api/users/me?userId=…` | — | Current profile (userId is temp until the authorization pass) |
-| `PUT /api/users/me/profile?userId=…` | profile fields | Partial update; enum fields take numeric values |
-| `PUT /api/users/me/skills?userId=…` | `{skills:[…]}` | Replaces the whole skill set (deduped) |
+| `GET /api/users/me` | — | Current profile; requires a bearer token (caller resolved from its `sub` claim) |
+| `PUT /api/users/me/profile` | profile fields | Partial update; enum fields take numeric values; requires a bearer token |
+| `PUT /api/users/me/skills` | `{skills:[…]}` | Replaces the whole skill set (deduped); requires a bearer token |
 
 Every auth response looks like `{accessToken, refreshToken, expiresInSeconds, user}` — the access token is a signed JWT (15 min, HS256) validated against `JwtSettings`; send it as `Authorization: Bearer …`. Refresh tokens are opaque, stored **hashed** (SHA-256) in the `refresh_tokens` table, and rotated on each refresh. Replaying a revoked refresh token is treated as a stolen session and revokes **all** of that user's active tokens.
 
@@ -165,7 +166,14 @@ curl -X POST "http://localhost:${API_PORT}/api/auth/register" \
 # then: curl -X POST .../api/auth/refresh -d "{\"refreshToken\":\"…\"}"
 ```
 
-Auth uses ASP.NET Core Identity (`AspNetUsers` etc.) backed by the same Postgres DB; `user_profiles`, `user_skills` and `refresh_tokens` are tables of their own. `JwtSettings:Key` must be a dev secret (≥32 chars — a generated one is baked into `appsettings.json` for local demo). Job search and pipeline endpoints stay public — no login wall. Bearer validation is wired (`UseAuthentication`); endpoint authorization guards land in a later pass.
+Auth uses ASP.NET Core Identity (`AspNetUsers` etc.) backed by the same Postgres DB; `user_profiles`, `user_skills` and `refresh_tokens` are tables of their own. `JwtSettings:Key` must be a dev secret (≥32 chars — a generated one is baked into `appsettings.json` for local demo).
+
+**Roles & authorization:**
+
+- Two roles, seeded on startup: **`User`** (assigned automatically at registration) and **`Admin`** (assigned manually).
+- `/api/users/me*` require any authenticated user (`401` without a token). Job search (`/api/jobs`) and the auth endpoints stay public.
+- The **ingestion trigger** and the **Hangfire dashboard** (`/hangfire`, dev only) require the `Admin` role (`403` otherwise).
+- Role claims ride in the JWT as `role` and are matched via `TokenValidationParameters.RoleClaimType` (no inbound claim remapping). The OpenAPI spec marks secured operations with a `bearerAuth` security requirement so Scalar prompts for a token.
 
 ### Local dev without Docker
 

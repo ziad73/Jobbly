@@ -2,6 +2,8 @@ using Jobbly.Application.Pipeline;
 using Jobbly.Domain.Entities;
 using Jobbly.Domain.Enums;
 using Jobbly.Infrastructure.Config;
+using Jobbly.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -25,6 +27,9 @@ public static class DatabaseInitializer
 
         // seed provider table with configured sources that have a registered connector
         await SeedProvidersAsync(scope.ServiceProvider, context, logger, cancellationToken);
+
+        // seed Identity roles so registration can always assign the default role
+        await SeedRolesAsync(scope.ServiceProvider, logger, cancellationToken);
     }
     
 
@@ -71,6 +76,29 @@ public static class DatabaseInitializer
         {
             await context.SaveChangesAsync(cancellationToken);
             logger.LogInformation("Seeded {Count} provider(s).", sources.Count(s => connectedSlugs.Contains(s.Key)));
+        }
+    }
+
+    // Seed Identity roles. Idempotent - roles already present are left untouched,
+    // so every registration can assign the default role unconditionally.
+    private static async Task SeedRolesAsync(
+        IServiceProvider serviceProvider,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+
+        foreach (var role in new[] { ApplicationRoles.User, ApplicationRoles.Admin })
+        {
+            if (!await roleManager.RoleExistsAsync(role))
+            {
+                var result = await roleManager.CreateAsync(new IdentityRole<Guid>(role));
+                if (!result.Succeeded)
+                {
+                    logger.LogWarning("Could not seed role '{Role}': {Errors}.",
+                        role, string.Join(';', result.Errors.Select(e => e.Description)));
+                }
+            }
         }
     }
 }

@@ -1,3 +1,4 @@
+using Jobbly.Api.Authentication;
 using Jobbly.Application.Pipeline;
 
 namespace Jobbly.Api.Endpoints;
@@ -13,7 +14,10 @@ public static class PipelineEndpoints
                 return result is null
                     ? Results.NotFound()
                     : Results.Ok(result);
-            });
+            })
+            .RequireAuthorization(AddApiAuthorizationExtensions.AdminPolicy)
+            .WithSummary("Trigger the ingestion pipeline for a provider")
+            .WithDescription("Admin only. Runs a manual ingestion for the given provider slug.");
 
         return app;
     }

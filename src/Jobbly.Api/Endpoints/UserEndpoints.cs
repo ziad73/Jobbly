@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Jobbly.Application.Users;
 
 namespace Jobbly.Api.Endpoints;
@@ -6,14 +7,19 @@ public static class UserEndpoints
 {
     public static WebApplication MapUserEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/users/me");
-
-        // TODO(auth): read the user id from the bearer token's subject claim once JWT lands.
-        // For now it comes from the query string so these can be exercised end-to-end.
+        // The whole group requires a valid bearer token; the caller's Id comes
+        // from the token's subject claim, never from request input.
+        var group = app.MapGroup("/api/users/me")
+            .RequireAuthorization();
 
         group.MapGet("",
-            async (Guid userId, IUserProfileService profiles, CancellationToken ct) =>
+            async (ClaimsPrincipal user, IUserProfileService profiles, CancellationToken ct) =>
             {
+                if (user.GetUserId() is not { } userId)
+                {
+                    return Results.Unauthorized();
+                }
+
                 var profile = await profiles.GetMeAsync(userId, ct);
                 return profile is null
                     ? Results.NotFound()
@@ -24,8 +30,13 @@ public static class UserEndpoints
             .WithDescription("Returns the 1:1 profile auto-created at registration.");
 
         group.MapPut("/profile",
-            async (Guid userId, UpdateUserProfileRequest request, IUserProfileService profiles, CancellationToken ct) =>
+            async (ClaimsPrincipal user, UpdateUserProfileRequest request, IUserProfileService profiles, CancellationToken ct) =>
             {
+                if (user.GetUserId() is not { } userId)
+                {
+                    return Results.Unauthorized();
+                }
+
                 var profile = await profiles.UpdateProfileAsync(userId, request, ct);
                 return profile is null
                     ? Results.NotFound()
@@ -36,8 +47,13 @@ public static class UserEndpoints
             .WithDescription("Partially updates the profile - fields not supplied keep their current values.");
 
         group.MapPut("/skills",
-            async (Guid userId, ReplaceSkillsRequest request, IUserProfileService profiles, CancellationToken ct) =>
+            async (ClaimsPrincipal user, ReplaceSkillsRequest request, IUserProfileService profiles, CancellationToken ct) =>
             {
+                if (user.GetUserId() is not { } userId)
+                {
+                    return Results.Unauthorized();
+                }
+
                 await profiles.ReplaceSkillsAsync(userId, request.Skills ?? [], ct);
                 return Results.NoContent();
             })

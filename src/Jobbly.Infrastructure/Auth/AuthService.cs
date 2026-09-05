@@ -32,6 +32,9 @@ public sealed class AuthService(
             return null;
         }
 
+        // Everyone starts with the User role (elevated Admin is assigned manually).
+        await userManager.AddToRoleAsync(user, ApplicationRoles.User);
+
         // Profiles are always present (1:1), so create one at registration.
         dbContext.UserProfiles.Add(UserProfile.Create(user.Id));
         await dbContext.SaveChangesAsync(cancellationToken);
