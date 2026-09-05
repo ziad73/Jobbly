@@ -13,6 +13,8 @@ public interface IJobblyDbContext
     DbSet<Job> Jobs { get; }
     DbSet<CanonicalJob> CanonicalJobs { get; }
     DbSet<PipelineRun> PipelineRuns { get; }
+    DbSet<UserProfile> UserProfiles { get; }
+    DbSet<UserSkill> UserSkills { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
