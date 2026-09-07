@@ -20,13 +20,15 @@ services:
         condition: service_healthy            # Wait for postgres-db to be HEALTHY before starting app
 
   db:
-    image: postgres:16
+    image: postgres:18
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - jobbly-pgdata:/var/lib/postgresql/data
+      # PG 18+ images store data in versioned subdirs and reject a mount at the
+      # legacy /var/lib/postgresql/data path - mount the parent instead.
+      - jobbly-pgdata:/var/lib/postgresql
     networks:
       - jobbly-net
     # Host-side access for local dev (the API service reaches it over the
