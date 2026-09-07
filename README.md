@@ -74,9 +74,9 @@ Following the phases in [TECHNICAL-DESIGN §4](./docs/TECHNICAL-DESIGN.md#4-deli
 
 - [x] **Phase 0 — Foundation**: project structure, domain entities, EF Core + migrations, Postgres FTS groundwork, validated options config, Serilog + ProblemDetails error handling, Docker Compose dev/prod environments
 - [x] **Phase 1 — Pipeline backbone**: Greenhouse connector end-to-end (fetch → normalize → dedup → enrich → persist), Hangfire recurring runs, verified against the live Stripe board (594 jobs) via manual trigger
-- [ ] **Phase 2 — Search & discovery MVP**: `GET /api/jobs`, filters, sorting
+- [x] **Phase 2 — Search & discovery MVP**: `GET /api/jobs` (full-text q, tags, location, seniority, remote, salary filters; relevance/date/salary sort; paging over deduplicated canonicals) + `GET /api/jobs/{id}` detail; public, no login wall
 - [x] **Phase 3 — Accounts & profile**: Identity (email/password), JWT access + refresh (rotation, reuse detection), `User`/`Admin` roles, `/api/users/me*` authenticated-only, `/api/pipeline/trigger` + `/hangfire` admin-gated
-- [ ] **Phase 4 — Saved jobs/searches & application tracker**
+- [x] **Phase 4 — Saved jobs/searches & application tracker**: `/api/saved-jobs` (save/list/patch/delete, status flow, duplicate → 409), `/api/saved-searches` (CRUD + `/matches` feed reusing the search pipeline)
 - [ ] **Phase 5 — Expand coverage & harden**
 
 ---
@@ -157,6 +157,20 @@ curl "http://localhost:${API_PORT}/api/jobs/01a06299-e407-7b5d-aab4-203d3c587d65
 | `GET /api/users/me` | — | Current profile; requires a bearer token (caller resolved from its `sub` claim) |
 | `PUT /api/users/me/profile` | profile fields | Partial update; enum fields take numeric values; requires a bearer token |
 | `PUT /api/users/me/skills` | `{skills:[…]}` | Replaces the whole skill set (deduped); requires a bearer token |
+
+**Tracker — saved jobs & searches (all require a bearer token):**
+
+| Endpoint | Body | Notes |
+|---|---|---|
+| `GET /api/saved-jobs?page=&pageSize=` | — | Tracked jobs, newest first, with a compact job snapshot |
+| `POST /api/saved-jobs` | `{canonicalJobId}` | Starts tracking (`Saved`); `404` unknown/archived, `409` already saved |
+| `PATCH /api/saved-jobs/{id}` | `{status?, notes?, followUpAt?}` | Status is numeric (`0`=Saved, `1`=Applied, `2`=InProgress, `3`=Closed); first `Applied` records the timestamp |
+| `DELETE /api/saved-jobs/{id}` | — | Stops tracking (idempotent) |
+| `GET /api/saved-searches` | — | Saved searches with stored criteria |
+| `POST /api/saved-searches` | `{name, criteria}` | `criteria` mirrors the `GET /api/jobs` filters |
+| `PATCH /api/saved-searches/{id}` | `{name?, criteria?}` | Partial update |
+| `DELETE /api/saved-searches/{id}` | — | Idempotent |
+| `GET /api/saved-searches/{id}/matches?page=&pageSize=` | — | Dashboard feed: runs the stored filters through the search pipeline |
 
 Every auth response looks like `{accessToken, refreshToken, expiresInSeconds, user}` — the access token is a signed JWT (15 min, HS256) validated against `JwtSettings`; send it as `Authorization: Bearer …`. Refresh tokens are opaque, stored **hashed** (SHA-256) in the `refresh_tokens` table, and rotated on each refresh. Replaying a revoked refresh token is treated as a stolen session and revokes **all** of that user's active tokens.
 
