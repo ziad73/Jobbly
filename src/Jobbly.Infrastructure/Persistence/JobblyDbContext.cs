@@ -18,6 +18,8 @@ public sealed class JobblyDbContext(DbContextOptions<JobblyDbContext> options)
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<UserSkill> UserSkills => Set<UserSkill>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<SavedJob> SavedJobs => Set<SavedJob>();
+    public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
