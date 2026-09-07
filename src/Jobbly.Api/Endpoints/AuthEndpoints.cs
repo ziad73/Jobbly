@@ -6,7 +6,8 @@ public static class AuthEndpoints
 {
     public static WebApplication MapAuthEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/auth");
+        var group = app.MapGroup("/api/auth")
+            .WithTags("Auth");
 
         group.MapPost("/register",
             async (RegisterRequest request, IAuthService auth, CancellationToken ct) =>

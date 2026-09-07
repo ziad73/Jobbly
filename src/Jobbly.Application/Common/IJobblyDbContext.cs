@@ -16,6 +16,8 @@ public interface IJobblyDbContext
     DbSet<UserProfile> UserProfiles { get; }
     DbSet<UserSkill> UserSkills { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
+    DbSet<SavedJob> SavedJobs { get; }
+    DbSet<SavedSearch> SavedSearches { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

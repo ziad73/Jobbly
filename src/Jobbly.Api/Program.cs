@@ -124,4 +124,10 @@ app.MapAuthEndpoints();
 // Own-profile endpoints (GET/PUT /api/users/me)
 app.MapUserEndpoints();
 
+// Saved jobs + application tracker
+app.MapSavedJobEndpoints();
+
+// Saved searches + dashboard feed -logged-in user's personal home page with suggested jobs-
+app.MapSavedSearchEndpoints();
+
 app.Run();

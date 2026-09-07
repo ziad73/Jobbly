@@ -1,5 +1,6 @@
 using Jobbly.Application.Jobs;
 using Jobbly.Application.Pipeline;
+using Jobbly.Application.Tracker;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Jobbly.Application;
@@ -12,6 +13,8 @@ public static class DependencyInjection
         // interfaces are implemented and registered in Infrastructure.
         services.AddScoped<RunIngestionPipeline>();
         services.AddScoped<JobSearchService>();
+        services.AddScoped<SavedJobService>();
+        services.AddScoped<SavedSearchService>();
 
         return services;
     }

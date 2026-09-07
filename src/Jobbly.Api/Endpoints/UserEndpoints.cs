@@ -10,6 +10,7 @@ public static class UserEndpoints
         // The whole group requires a valid bearer token; the caller's Id comes
         // from the token's subject claim, never from request input.
         var group = app.MapGroup("/api/users/me")
+            .WithTags("Users")
             .RequireAuthorization();
 
         group.MapGet("",

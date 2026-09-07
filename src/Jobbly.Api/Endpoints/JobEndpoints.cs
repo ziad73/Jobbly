@@ -7,14 +7,17 @@ public static class JobEndpoints
 {
     public static WebApplication MapJobEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/jobs",
+        var group = app.MapGroup("/api/jobs")
+            .WithTags("Jobs");
+
+        group.MapGet("",
             async ([AsParameters] JobSearchQuery query, JobSearchService search, CancellationToken ct) =>
                 Results.Ok(await search.SearchAsync(query, ct)))
             .WithName("SearchJobs")
             .WithSummary("Search deduplicated jobs")
             .WithDescription("Returns one listing per canonical job with optional filters: full-text q, tags, location, seniority, remote, salary, sort, and paging.");
 
-        app.MapGet("/api/jobs/{canonicalId:guid}",
+        group.MapGet("/{canonicalId:guid}",
             async (Guid canonicalId, JobSearchService search, CancellationToken ct) =>
             {
                 var detail = await search.GetByIdAsync(canonicalId, ct);

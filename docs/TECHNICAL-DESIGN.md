@@ -634,6 +634,7 @@ Query parameters:
 | `POST` | `/api/saved-searches` | Create a saved search |
 | `PATCH` | `/api/saved-searches/{id}` | Update name or criteria |
 | `DELETE` | `/api/saved-searches/{id}` | Delete a saved search |
+| `GET` | `/api/saved-searches/{id}/matches` | Dashboard feed: run the stored filters (paged) |
 
 #### Saved Jobs & Application Tracker
 
@@ -690,7 +691,7 @@ Extends the listing model with:
 | --- | --- | --- |
 | `id` | string | Saved job identifier |
 | `canonicalJobId` | string | Referenced canonical job |
-| `status` | string | `saved` / `applied` / `in_progress` / `closed` |
+| `status` | enum | `0` (Saved) · `1` (Applied) · `2` (InProgress) · `3` (Closed) — numeric like all enums |
 | `notes` | string | Private free-text note |
 | `followUpAt` | datetime | Follow-up reminder date (display only in v1) |
 | `appliedAt` | datetime | When marked applied |
