@@ -17,6 +17,7 @@ public static class PipelineEndpoints
                     : Results.Ok(result);
             })
             .RequireAuthorization(AddApiAuthorizationExtensions.AdminPolicy)
+            .WithTags("Pipeline")
             .WithSummary("Trigger the ingestion pipeline for a provider")
             .WithDescription("Admin only. Runs a manual ingestion for the given provider slug.");
 

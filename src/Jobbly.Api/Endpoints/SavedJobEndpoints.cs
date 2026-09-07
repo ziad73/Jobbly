@@ -9,6 +9,7 @@ public static class SavedJobEndpoints
     public static WebApplication MapSavedJobEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/saved-jobs")
+            .WithTags("Saved Jobs")
             .RequireAuthorization();
 
         group.MapGet("",

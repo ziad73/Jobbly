@@ -20,6 +20,7 @@ public static class SavedSearchEndpoints
     public static WebApplication MapSavedSearchEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/saved-searches")
+            .WithTags("Saved Searches")
             .RequireAuthorization();
 
         group.MapGet("",
