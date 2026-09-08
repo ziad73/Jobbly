@@ -13,9 +13,14 @@ public static class JobEndpoints
         group.MapGet("",
             async ([AsParameters] JobSearchQuery query, JobSearchService search, CancellationToken ct) =>
                 Results.Ok(await search.SearchAsync(query, ct)))
+            .CacheOutput(p => p
+                .Expire(TimeSpan.FromSeconds(90))
+                .Tag("jobs")
+                .SetVaryByQuery("q", "tags", "seniority", "remote", "location",
+                    "salarymin", "salarymax", "salarycurrency", "sort", "page", "pagesize"))
             .WithName("SearchJobs")
             .WithSummary("Search deduplicated jobs")
-            .WithDescription("Returns one listing per canonical job with optional filters: full-text q, tags, location, seniority, remote, salary, sort, and paging.");
+            .WithDescription("Returns one listing per canonical job with optional filters: full-text q, tags, location, seniority, remote, salary, sort, and paging. Cached 90s per query; invalidated on ingestion.");
 
         group.MapGet("/{canonicalId:guid}",
             async (Guid canonicalId, JobSearchService search, CancellationToken ct) =>
