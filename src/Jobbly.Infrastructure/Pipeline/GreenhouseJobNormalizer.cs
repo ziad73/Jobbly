@@ -93,7 +93,7 @@ public sealed partial class GreenhouseJobNormalizer : IJobNormalizer
     [GeneratedRegex(@"[\(\[].*?[\)\]]")]
     private static partial Regex BracketSegmentRegex();
 
-    [GeneratedRegex(@"\s+(inc\.?|llc|ltd\.?|corp\.?|co\.?|company)\s*$")]
+    [GeneratedRegex(@"[\s,]+(inc\.?|llc|ltd\.?|corp\.?|co\.?|company)\s*$")]
     private static partial Regex CompanySuffixRegex();
 
     [GeneratedRegex("<[^>]+>")]
