@@ -65,6 +65,8 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         AddGreenhouseConnector(services);
+        AddLeverConnector(services);
+        AddAshbyConnector(services);
 
         // Pipeline services — called by the orchestrator in Application layer
         services.AddScoped<IJobNormalizer, GreenhouseJobNormalizer>();
@@ -83,18 +85,33 @@ public static class DependencyInjection
         return services;
     }
 
-    private static void AddGreenhouseConnector(IServiceCollection services)
+    private static void AddGreenhouseConnector(IServiceCollection services) =>
+        AddProviderConnector<GreenhouseConnector>(services, "greenhouse");
+
+    private static void AddLeverConnector(IServiceCollection services) =>
+        AddProviderConnector<LeverConnector>(services, "lever");
+
+    private static void AddAshbyConnector(IServiceCollection services) =>
+        AddProviderConnector<AshbyConnector>(services, "ashby");
+
+    // One named HttpClient per provider slug (a typed client named after the
+    // shared IJobConnector interface would collide, with the last registration
+    // winning for every provider), configured with a Polly resilience pipeline
+    // (retry on transient failures + circuit breaker) and 30-second timeout.
+    // Each typed client is forwarded as IJobConnector so the orchestrator's
+    // IEnumerable<IJobConnector> picks up every provider.
+    private static void AddProviderConnector<TConnector>(IServiceCollection services, string slug)
+        where TConnector : class, IJobConnector
     {
-        // register the connector with a typed HttpClient in DI, configured with a Polly resilience pipeline 
-        // (retry on transient failures + circuit breaker) and 30-second timeout.
-        services.AddHttpClient<IJobConnector, GreenhouseConnector>((sp, client) =>
+        var http = services.AddHttpClient(slug, (sp, client) =>
         {
-            var config = sp.GetRequiredService<IOptions<ProvidersOptions>>().Value.Sources["greenhouse"];
+            var config = sp.GetRequiredService<IOptions<ProvidersOptions>>().Value.Sources[slug];
             client.BaseAddress = new Uri(config.BaseUrl);
             client.Timeout = TimeSpan.FromSeconds(30);
             client.DefaultRequestHeaders.Add("User-Agent", "Jobbly/1.0");
-        })
-        .AddResilienceHandler("greenhouse", (builder, context) =>
+        });
+
+        http.AddResilienceHandler(slug, (builder, context) =>
         {
             var pipeline = context.ServiceProvider
                 .GetRequiredService<IOptions<PipelineOptions>>().Value;
@@ -113,5 +130,9 @@ public static class DependencyInjection
                 MinimumThroughput = 8
             });
         });
+
+        http.AddTypedClient<TConnector>();
+
+        services.AddTransient<IJobConnector>(sp => sp.GetRequiredService<TConnector>());
     }
 }
