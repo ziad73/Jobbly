@@ -662,7 +662,7 @@ Query parameters:
 | `salaryCurrency` | string | ISO currency code |
 | `salaryPeriod` | string | `year` / `month` / `hour` |
 | `techStack` | string[] | Normalized technology tags |
-| `seniority` | string | `junior` / `mid` / `senior` / `staff` / `principal` |
+| `seniority` | enum (numeric) | `0`=Unknown, `1`=Internship, `2`=EntryLevel, `3`=Junior, `4`=MidLevel, `5`=Senior, `6`=Staff, `7`=Lead, `8`=Principal, `9`=Manager, `10`=Director, `11`=Executive |
 | `postedAtUtc` | datetime | Normalized publish date |
 | `sourceCount` | int | Number of boards this job was found on |
 

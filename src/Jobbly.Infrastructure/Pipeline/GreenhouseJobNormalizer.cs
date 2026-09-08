@@ -63,15 +63,38 @@ public sealed partial class GreenhouseJobNormalizer : IJobNormalizer
     internal static string ComputeFingerprint(string title, string companyName, string? location)
     {
         var sb = new StringBuilder();
-        sb.Append(title.ToLowerInvariant().Trim());
+        sb.Append(NormalizeTitle(title));
         sb.Append('|');
-        sb.Append(companyName.ToLowerInvariant().Trim());
+        sb.Append(NormalizeCompany(companyName));
         sb.Append('|');
         sb.Append(location?.Trim().ToLowerInvariant() ?? string.Empty);
 
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
+
+    // Titles vary across boards with bracketed markers ("Senior Backend
+    // Engineer (Remote)") while team suffixes after commas ("Backend Engineer,
+    // Payments" vs ", Risk") denote different jobs and are kept.
+    internal static string NormalizeTitle(string title)
+    {
+        var lower = title.ToLowerInvariant();
+        lower = BracketSegmentRegex().Replace(lower, " ");
+        return CollapseWhitespaceRegex().Replace(lower, " ").Trim();
+    }
+
+    // "Stripe, Inc." and "Stripe" are the same employer for dedup purposes.
+    internal static string NormalizeCompany(string companyName)
+    {
+        var lower = companyName.ToLowerInvariant().Trim();
+        return CompanySuffixRegex().Replace(lower, "").Trim();
+    }
+
+    [GeneratedRegex(@"[\(\[].*?[\)\]]")]
+    private static partial Regex BracketSegmentRegex();
+
+    [GeneratedRegex(@"\s+(inc\.?|llc|ltd\.?|corp\.?|co\.?|company)\s*$")]
+    private static partial Regex CompanySuffixRegex();
 
     [GeneratedRegex("<[^>]+>")]
     private static partial Regex TagRegex();
