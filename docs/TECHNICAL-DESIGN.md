@@ -95,7 +95,8 @@ Jobbly.sln
 │   ├── Jobbly.Infrastructure/             # Implements Application's interfaces
 │   │   ├── Connectors/                    # One connector class per provider
 │   │   │   ├── GreenhouseConnector.cs     # implements IJobConnector
-│   │   │   └── LeverConnector.cs
+│   │   │   ├── LeverConnector.cs          # implements IJobConnector
+│   │   │   └── AshbyConnector.cs          # implements IJobConnector
 │   │   ├── Persistence/
 │   │   │   └── JobblyDbContext.cs         # implements IJobblyDbContext — EF Core + Npgsql
 │   │   ├── BackgroundJobs/
