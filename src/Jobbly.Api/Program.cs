@@ -7,6 +7,7 @@ using Jobbly.Application;
 using Jobbly.Infrastructure;
 using Jobbly.Infrastructure.BackgroundJobs;
 using Jobbly.Api.Authentication;
+using Jobbly.Api.Health;
 using Jobbly.Api.OpenApi;
 using Jobbly.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +34,12 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 // Enables automatic validation for all Minimal API endpoints
 builder.Services.AddValidation();
+
+// Health: /health is liveness (process up), /health/ready gates on Postgres
+// and Hangfire storage. No extra packages - checks use the EF DbContext.
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database")
+    .AddCheck<HangfireStorageHealthCheck>("hangfire");
 
 // Serilog configuration
 builder.Services.AddSerilog((services, lc) => lc
@@ -108,6 +115,10 @@ if (app.Environment.IsDevelopment())
         Authorization = [new HangfireDashboardAuthorizationFilter()]
     });
 }
+
+// Health probes (public, unauthenticated - load balancers need them).
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/ready");
 
 // Hello, world
 app.MapGet("temp", () => "Hello, world devvvv");
