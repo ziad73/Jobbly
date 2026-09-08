@@ -138,7 +138,7 @@ Returns the run summary (jobs fetched/created/updated/deduplicated, status) as J
 | `q` | string | Full-text search over title/company/description (Postgres tsvector) |
 | `tags` | string[] | Repeatable (`?tags=python&tags=kafka`) — matches the enriched tech stack |
 | `location` | string | Case-insensitive match on job location |
-| `seniority` | enum | `0` (Entry) … `4` (Staff) |
+| `seniority` | enum | `0`=Unknown, `1`=Internship, `2`=EntryLevel, `3`=Junior, `4`=MidLevel, `5`=Senior, `6`=Staff, `7`=Lead, `8`=Principal, `9`=Manager, `10`=Director, `11`=Executive |
 | `remote` | enum | `1` (Remote), `2` (Hybrid), `3` (OnSite) |
 | `salaryMin` / `salaryMax` / `salaryCurrency` | int / string | Salary filtering |
 | `sort` | enum | `Relevance` (default), `Date`, `Salary` |

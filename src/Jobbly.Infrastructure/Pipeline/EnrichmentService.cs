@@ -14,7 +14,7 @@ public sealed partial class EnrichmentService : IEnrichmentService
     private static readonly (string[] Aliases, string Tag)[] TechKeywords =
     [
         // Languages
-        (["c#", "csharp", ".net", "dotnet"], "dotnet"),
+        (["c#", "csharp", ".net", "dotnet", "aspnet"], "dotnet"),
         (["java"], "java"),
         (["python"], "python"),
         (["javascript", "js"], "javascript"),
@@ -57,15 +57,38 @@ public sealed partial class EnrichmentService : IEnrichmentService
         // Protocols & tools
         (["graphql"], "graphql"),
         (["grpc"], "grpc"),
+
+        // Platform & tooling
+        (["devops"], "devops"),
+        (["linux"], "linux"),
+        (["git"], "git"),
+    ];
+
+    // Multi-word skills the word tokenizer can never match. Scanned against
+    // the full text before word-splitting.
+    private static readonly (string Phrase, string Tag)[] TechPhrases =
+    [
+        ("machine learning", "machine-learning"),
+        ("data science", "data-science"),
+        ("data engineer", "data-engineering"),
+        ("deep learning", "deep-learning"),
     ];
 
     // Ordered by specificity — most specific first, first match wins.
+    // Executive/Chief/CXO intentionally unpatterned: "Executive Assistant"
+    // false-positives make any such pattern noisy, so those stay Unknown.
     private static readonly (SeniorityLevel Level, Regex Pattern)[] SeniorityPatterns =
     [
         (SeniorityLevel.Principal, PrincipalRegex()),
+        (SeniorityLevel.Director, DirectorRegex()),
+        (SeniorityLevel.Manager, ManagerRegex()),
+        (SeniorityLevel.Lead, LeadRegex()),
         (SeniorityLevel.Staff, StaffRegex()),
         (SeniorityLevel.Senior, SeniorRegex()),
+        (SeniorityLevel.MidLevel, MidLevelRegex()),
         (SeniorityLevel.Junior, JuniorRegex()),
+        (SeniorityLevel.EntryLevel, EntryLevelRegex()),
+        (SeniorityLevel.Internship, InternshipRegex()),
     ];
 
     private static readonly Regex[] RemotePatterns = [RemoteRegex(), HybridRegex()];
@@ -74,6 +97,7 @@ public sealed partial class EnrichmentService : IEnrichmentService
         (EmploymentType.FullTime, FullTimeRegex()),
         (EmploymentType.PartTime, PartTimeRegex()),
         (EmploymentType.Contract, ContractRegex()),
+        (EmploymentType.Temporary, TemporaryRegex()),
         (EmploymentType.Internship, InternRegex()),
     ];
 
@@ -82,7 +106,7 @@ public sealed partial class EnrichmentService : IEnrichmentService
         var text = $"{job.Title} {job.DescriptionRaw}".ToLowerInvariant();
         var title = job.Title;
 
-        var remote = DetectRemoteType(title, job.Location);
+        var remote = DetectRemoteType(title, job.Location, job.DescriptionRaw);
         var seniority = DetectSeniority(title);
         var employment = DetectEmploymentType(text);
         var techStack = DetectTechStack(text);
@@ -96,9 +120,9 @@ public sealed partial class EnrichmentService : IEnrichmentService
             []); // NiceToHaves  — no structured extraction yet
     }
 
-    private static RemoteType DetectRemoteType(string title, string? location)
+    private static RemoteType DetectRemoteType(string title, string? location, string? description)
     {
-        var haystack = $"{title} {location}".ToLowerInvariant();
+        var haystack = $"{title} {location} {description}".ToLowerInvariant();
         foreach (var pattern in RemotePatterns)
         {
             if (pattern.IsMatch(haystack))
@@ -136,8 +160,17 @@ public sealed partial class EnrichmentService : IEnrichmentService
 
     private static IReadOnlyList<string> DetectTechStack(string text)
     {
-        var words = text.Split([' ', '/', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries);
         var matched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (phrase, tag) in TechPhrases)
+        {
+            if (text.Contains(phrase, StringComparison.OrdinalIgnoreCase))
+            {
+                matched.Add(tag);
+            }
+        }
+
+        var words = text.Split([' ', '/', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries);
 
         foreach (var rawWord in words)
         {
@@ -146,6 +179,10 @@ public sealed partial class EnrichmentService : IEnrichmentService
             {
                 continue;
             }
+
+            // Dotted tokens ("node.js", "vue.js", "asp.net") never match plain
+            // aliases, so compare the dot-stripped form as well.
+            var compact = word.Replace(".", "", StringComparison.Ordinal);
 
             foreach (var (aliases, tag) in TechKeywords)
             {
@@ -156,7 +193,8 @@ public sealed partial class EnrichmentService : IEnrichmentService
 
                 foreach (var alias in aliases)
                 {
-                    if (word.Equals(alias, StringComparison.OrdinalIgnoreCase))
+                    if (word.Equals(alias, StringComparison.OrdinalIgnoreCase)
+                        || compact.Equals(alias, StringComparison.OrdinalIgnoreCase))
                     {
                         matched.Add(tag);
                         break;
@@ -171,16 +209,34 @@ public sealed partial class EnrichmentService : IEnrichmentService
     [GeneratedRegex(@"\bprincipal\b", RegexOptions.IgnoreCase)]
     private static partial Regex PrincipalRegex();
 
+    [GeneratedRegex(@"\bdirector\b|\bvp\b|vice[\s-]?president", RegexOptions.IgnoreCase)]
+    private static partial Regex DirectorRegex();
+
+    [GeneratedRegex(@"\bmanager\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ManagerRegex();
+
+    [GeneratedRegex(@"\blead\b|\bleader\b", RegexOptions.IgnoreCase)]
+    private static partial Regex LeadRegex();
+
     [GeneratedRegex(@"\bstaff\b", RegexOptions.IgnoreCase)]
     private static partial Regex StaffRegex();
 
-    [GeneratedRegex(@"\bsenior\b|\bsr\.?\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bsenior\b|\bsr\.?\b|\biii\b", RegexOptions.IgnoreCase)]
     private static partial Regex SeniorRegex();
 
-    [GeneratedRegex(@"\bjunior\b|\bjr\.?\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bmid\b|mid[\s-]?level|\bii\b", RegexOptions.IgnoreCase)]
+    private static partial Regex MidLevelRegex();
+
+    [GeneratedRegex(@"\bjunior\b|\bjr\.?\b|\bi\b", RegexOptions.IgnoreCase)]
     private static partial Regex JuniorRegex();
 
-    [GeneratedRegex(@"\bremote\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bentry(?:[\s-]?level)?\b|\bgraduate\b|\btrainee\b|\bapprentice\b", RegexOptions.IgnoreCase)]
+    private static partial Regex EntryLevelRegex();
+
+    [GeneratedRegex(@"\bintern(?:ship)?\b", RegexOptions.IgnoreCase)]
+    private static partial Regex InternshipRegex();
+
+    [GeneratedRegex(@"\bremote\b|remote[\s-]?first|\bwfh\b|work[\s-]?from[\s-]?home", RegexOptions.IgnoreCase)]
     private static partial Regex RemoteRegex();
 
     [GeneratedRegex(@"\bhybrid\b", RegexOptions.IgnoreCase)]
@@ -194,6 +250,9 @@ public sealed partial class EnrichmentService : IEnrichmentService
 
     [GeneratedRegex(@"\bcontract(?:or|s)?\b", RegexOptions.IgnoreCase)]
     private static partial Regex ContractRegex();
+
+    [GeneratedRegex(@"\btemporary\b|\btemp\b", RegexOptions.IgnoreCase)]
+    private static partial Regex TemporaryRegex();
 
     [GeneratedRegex(@"\bintern(?:ship)?\b", RegexOptions.IgnoreCase)]
     private static partial Regex InternRegex();
