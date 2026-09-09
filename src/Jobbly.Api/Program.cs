@@ -59,7 +59,13 @@ builder.Services.AddHangfire(config => config
     .UseRecommendedSerializerSettings()
     .UsePostgreSqlStorage(options =>
         options.UseNpgsqlConnection(builder.Configuration.GetConnectionString("jobblydb"))));
-builder.Services.AddHangfireServer();
+
+// No job server in the Testing environment: e2e runs must never fire real
+// provider HTTP calls. Recurring job registration below is harmless (rows only).
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHangfireServer();
+}
 
 var app = builder.Build();
 
@@ -114,7 +120,11 @@ app.UseAuthorization();
 
 // Output cache. Placed after auth (cached search responses are public and
 // shared, so no per-user variance is needed) and before endpoint mapping.
-app.UseOutputCache();
+// Skipped in Testing so e2e assertions always see fresh state.
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseOutputCache();
+}
 
 // Hangfire dashboard — dev only, Admin role only. Declared after the auth
 // middleware so the bearer token populates the request identity first.
@@ -153,3 +163,8 @@ app.MapSavedJobEndpoints();
 app.MapSavedSearchEndpoints();
 
 app.Run();
+
+// Visible entry point for WebApplicationFactory<T> in e2e tests.
+public partial class Program
+{
+}

@@ -7,5 +7,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Jobbly.Tests/Jobbly.Tests.csproj" />
+    <Project Path="tests/Jobbly.E2ETests/Jobbly.E2ETests.csproj" />
   </Folder>
 </Solution>
