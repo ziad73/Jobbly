@@ -1,3 +1,4 @@
+using Jobbly.Api.RateLimiting;
 using Jobbly.Application.Auth;
 
 namespace Jobbly.Api.Endpoints;
@@ -6,8 +7,10 @@ public static class AuthEndpoints
 {
     public static WebApplication MapAuthEndpoints(this WebApplication app)
     {
+        // Strict per-IP window: brute-force protection for login/register.
         var group = app.MapGroup("/api/auth")
-            .WithTags("Auth");
+            .WithTags("Auth")
+            .RequireRateLimiting(AddApiRateLimitingExtensions.AuthPolicy);
 
         group.MapPost("/register",
             async (RegisterRequest request, IAuthService auth, CancellationToken ct) =>

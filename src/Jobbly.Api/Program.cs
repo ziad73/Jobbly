@@ -10,6 +10,7 @@ using Jobbly.Api.Authentication;
 using Jobbly.Api.Caching;
 using Jobbly.Api.Health;
 using Jobbly.Api.OpenApi;
+using Jobbly.Api.RateLimiting;
 using Jobbly.Application.Common;
 using Jobbly.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -47,6 +48,10 @@ builder.Services.AddScoped<ICacheInvalidator, OutputCacheInvalidator>();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database")
     .AddCheck<HangfireStorageHealthCheck>("hangfire");
+
+// Rate limiting: loose global per-IP window; strict per-endpoint policies for
+// auth (brute-force protection) and the expensive pipeline trigger.
+builder.Services.AddApiRateLimiting();
 
 // Serilog configuration
 builder.Services.AddSerilog((services, lc) => lc
@@ -105,6 +110,10 @@ app.UseSerilogRequestLogging();
 // app.UseRouting();
 // app.UseCors();
 // app.UseCors("Frontend");// Apply CORS policy globally on all endpoints
+
+// Rate limiting: floods are rejected cheaply before auth; endpoint metadata
+// is resolved by this point so per-endpoint policies apply.
+app.UseRateLimiter();
 
 // Authentication: validates a presented bearer token.
 app.UseAuthentication();
