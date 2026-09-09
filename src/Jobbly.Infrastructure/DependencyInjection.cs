@@ -67,6 +67,7 @@ public static class DependencyInjection
         AddGreenhouseConnector(services);
         AddLeverConnector(services);
         AddAshbyConnector(services);
+        AddRemoteOkConnector(services);
 
         // Pipeline services — called by the orchestrator in Application layer
         services.AddScoped<IJobNormalizer, GreenhouseJobNormalizer>();
@@ -93,6 +94,9 @@ public static class DependencyInjection
 
     private static void AddAshbyConnector(IServiceCollection services) =>
         AddProviderConnector<AshbyConnector>(services, "ashby");
+
+    private static void AddRemoteOkConnector(IServiceCollection services) =>
+        AddProviderConnector<RemoteOkConnector>(services, "remoteok");
 
     // One named HttpClient per provider slug (a typed client named after the
     // shared IJobConnector interface would collide, with the last registration
