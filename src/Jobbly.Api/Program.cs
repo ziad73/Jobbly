@@ -8,6 +8,7 @@ using Jobbly.Infrastructure;
 using Jobbly.Infrastructure.BackgroundJobs;
 using Jobbly.Api.Authentication;
 using Jobbly.Api.Caching;
+using Jobbly.Api.Health;
 using Jobbly.Api.OpenApi;
 using Jobbly.Application.Common;
 using Jobbly.Infrastructure.Persistence;
@@ -41,6 +42,11 @@ builder.Services.AddValidation();
 // public with no per-user content, so shared caching is safe.
 builder.Services.AddOutputCache();
 builder.Services.AddScoped<ICacheInvalidator, OutputCacheInvalidator>();
+// Health: /health is liveness (process up), /health/ready gates on Postgres
+// and Hangfire storage. No extra packages - checks use the EF DbContext.
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database")
+    .AddCheck<HangfireStorageHealthCheck>("hangfire");
 
 // Serilog configuration
 builder.Services.AddSerilog((services, lc) => lc
@@ -120,6 +126,10 @@ if (app.Environment.IsDevelopment())
         Authorization = [new HangfireDashboardAuthorizationFilter()]
     });
 }
+
+// Health probes (public, unauthenticated - load balancers need them).
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/ready");
 
 // Hello, world
 app.MapGet("temp", () => "Hello, world devvvv");

@@ -54,6 +54,14 @@ public sealed class HangfireIngestionScheduler
                 BuildCronInterval(provider.RefreshIntervalMinutes),
                 new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
         }
+
+        // Hourly health watchdog (failures + stale providers). Keyed by a
+        // fixed id so re-registration on startup is an idempotent upsert.
+        recurringJobs.AddOrUpdate<PipelineHealthMonitor>(
+            "pipeline-health-monitor",
+            job => job.CheckAsync(CancellationToken.None),
+            "0 * * * *",
+            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
     }
 
     // Converts a refresh interval in whole minutes into a valid 5-field CRON
