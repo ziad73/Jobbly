@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Jobbly.Api.Authentication;
+using Jobbly.Api.RateLimiting;
 using Jobbly.Application.Pipeline;
 
 namespace Jobbly.Api.Endpoints;
@@ -17,6 +18,7 @@ public static class PipelineEndpoints
                     : Results.Ok(result);
             })
             .RequireAuthorization(AddApiAuthorizationExtensions.AdminPolicy)
+            .RequireRateLimiting(AddApiRateLimitingExtensions.PipelinePolicy)
             .WithTags("Pipeline")
             .WithSummary("Trigger the ingestion pipeline for a provider")
             .WithDescription("Admin only. Runs a manual ingestion for the given provider slug.");

@@ -13,6 +13,7 @@ public static class JobEndpoints
         group.MapGet("",
             async ([AsParameters] JobSearchQuery query, JobSearchService search, CancellationToken ct) =>
                 Results.Ok(await search.SearchAsync(query, ct)))
+            // output caching for 90 seconds, with cache invalidation on job ingestion
             .CacheOutput(p => p
                 .Expire(TimeSpan.FromSeconds(90))
                 .Tag("jobs")

@@ -202,6 +202,7 @@ Auth uses ASP.NET Core Identity (`AspNetUsers` etc.) backed by the same Postgres
 - **Pipeline alerts**: hourly Hangfire watchdog (`pipeline-health-monitor`) warns on providers with consecutive failures and on providers with no run inside 2× their interval. Console sink for now.
 - **Search cache**: `GET /api/jobs` responses are output-cached 90s per query (in-memory, shared — the endpoint is public with no per-user content) and evicted on every successful ingestion via `ICacheInvalidator` (port in Application, OutputCache impl at the composition root), so scheduled and manual runs both stay fresh.
 - **Tests**: `tests/Jobbly.Tests` (xUnit) — enrichment rules, fingerprint normalization, tracker transitions, validation attributes, connector mapping (stub `HttpClient`), health-monitor behavior (fake `IJobblyDbContext`, no DB). Run with `dotnet test`.
+- **Rate limiting** (fixed-window, per client IP, no extra packages): `100/min` globally; `/api/auth/*` at `10/min` (brute-force protection); `/api/pipeline/trigger/*` at `10/min` (expensive runs). Over-limit → `429` with `{"message":"Too many requests. Try again later."}`.
 
 ### Local dev without Docker
 
