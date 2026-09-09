@@ -7,8 +7,10 @@ using Jobbly.Application;
 using Jobbly.Infrastructure;
 using Jobbly.Infrastructure.BackgroundJobs;
 using Jobbly.Api.Authentication;
+using Jobbly.Api.Caching;
 using Jobbly.Api.Health;
 using Jobbly.Api.OpenApi;
+using Jobbly.Application.Common;
 using Jobbly.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -35,6 +37,11 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 // Enables automatic validation for all Minimal API endpoints
 builder.Services.AddValidation();
 
+// Output cache (in-memory): GET /api/jobs variants are tagged "jobs" and
+// evicted on every successful ingestion via ICacheInvalidator. The endpoint is
+// public with no per-user content, so shared caching is safe.
+builder.Services.AddOutputCache();
+builder.Services.AddScoped<ICacheInvalidator, OutputCacheInvalidator>();
 // Health: /health is liveness (process up), /health/ready gates on Postgres
 // and Hangfire storage. No extra packages - checks use the EF DbContext.
 builder.Services.AddHealthChecks()
@@ -104,6 +111,10 @@ app.UseAuthentication();
 
 // Authorization: enforces RequireAuthorization on top of the authenticated identity.
 app.UseAuthorization();
+
+// Output cache. Placed after auth (cached search responses are public and
+// shared, so no per-user variance is needed) and before endpoint mapping.
+app.UseOutputCache();
 
 // Hangfire dashboard — dev only, Admin role only. Declared after the auth
 // middleware so the bearer token populates the request identity first.

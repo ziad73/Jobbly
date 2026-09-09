@@ -23,19 +23,22 @@ public sealed class RunIngestionPipeline
     private readonly IJobNormalizer _normalizer;
     private readonly IDeduplicationService _deduplicationService;
     private readonly IEnrichmentService _enrichmentService;
+    private readonly ICacheInvalidator _cacheInvalidator;
 
     public RunIngestionPipeline(
         IJobblyDbContext dbContext,
         IEnumerable<IJobConnector> connectors,
         IJobNormalizer normalizer,
         IDeduplicationService deduplicationService,
-        IEnrichmentService enrichmentService)
+        IEnrichmentService enrichmentService,
+        ICacheInvalidator cacheInvalidator)
     {
         _dbContext = dbContext;
         _connectors = connectors;
         _normalizer = normalizer;
         _deduplicationService = deduplicationService;
         _enrichmentService = enrichmentService;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     // Orchestrates one end-to-end ingestion run for a single provider:
@@ -132,6 +135,10 @@ public sealed class RunIngestionPipeline
             }
 
             await _dbContext.SaveChangesAsync(cancellationToken);
+
+            // Fresh data just landed (manual trigger or schedule) - drop cached
+            // search responses so the next query sees it.
+            await _cacheInvalidator.EvictJobsAsync(cancellationToken);
 
             return ToResult(run);
         }
