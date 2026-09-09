@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.RegularExpressions;
 using Jobbly.Application.Pipeline;
 using Jobbly.Domain.Entities;
@@ -74,6 +75,24 @@ public sealed partial class EnrichmentService : IEnrichmentService
         ("deep learning", "deep-learning"),
     ];
 
+    private const int MaxSectionItems = 20;
+    private const int MaxItemLength = 500;
+    private const int MaxSectionChars = 4000;
+
+    // Substrings identifying requirement headers. Checked after the
+    // nice-to-have list so "preferred qualifications" classifies correctly.
+    private static readonly string[] RequirementHeaderWords =
+    [
+        "requirements", "you'll need", "you bring", "qualifications",
+        "must have", "you have", "responsibilities"
+    ];
+
+    private static readonly string[] NiceToHaveHeaderWords =
+    [
+        "nice to have", "nice-to-have", "bonus", "preferred",
+        "what would set you apart", "desired"
+    ];
+
     // Ordered by specificity — most specific first, first match wins.
     // Executive/Chief/CXO intentionally unpatterned: "Executive Assistant"
     // false-positives make any such pattern noisy, so those stay Unknown.
@@ -101,23 +120,114 @@ public sealed partial class EnrichmentService : IEnrichmentService
         (EmploymentType.Internship, InternRegex()),
     ];
 
-    public void Enrich(Job job)
+    public void Enrich(Job job, string? remoteHint = null)
     {
         var text = $"{job.Title} {job.DescriptionRaw}".ToLowerInvariant();
         var title = job.Title;
 
-        var remote = DetectRemoteType(title, job.Location, job.DescriptionRaw);
+        var remote = ParseRemoteHint(remoteHint) ?? DetectRemoteType(title, job.Location, job.DescriptionRaw);
         var seniority = DetectSeniority(title);
         var employment = DetectEmploymentType(text);
         var techStack = DetectTechStack(text);
+        var (requirements, niceToHaves) = ExtractSections(job.DescriptionRaw);
 
         job.SetEnrichment(
             remote,
             seniority,
             employment,
             techStack,
-            [],  // Requirements — no structured extraction yet
-            []); // NiceToHaves  — no structured extraction yet
+            requirements,
+            niceToHaves);
+    }
+
+    // Provider-supplied workplace signal wins over text rules. Unknown or
+    // unrecognized values fall through to rule-based detection.
+    private static RemoteType? ParseRemoteHint(string? hint)
+    {
+        if (string.IsNullOrWhiteSpace(hint))
+        {
+            return null;
+        }
+
+        var lower = hint.ToLowerInvariant();
+        if (lower.Contains("remote"))
+        {
+            return RemoteType.Remote;
+        }
+
+        if (lower.Contains("hybrid"))
+        {
+            return RemoteType.Hybrid;
+        }
+
+        if (lower.Contains("on-site") || lower.Contains("onsite") || lower.Contains("on site"))
+        {
+            return RemoteType.OnSite;
+        }
+
+        return null;
+    }
+
+    // Splits descriptions into requirements vs nice-to-haves by section
+    // headers ("Requirements:", "What you'll need" vs "Nice to have",
+    // "Bonus", ...). Works on flattened text (stored descriptions are already
+    // whitespace-collapsed): headers are located by regex, bodies are sliced
+    // between consecutive headers and split on sentence/bullet boundaries.
+    // Capped so pathological postings can't flood the columns.
+    private static (IReadOnlyList<string> Requirements, IReadOnlyList<string> NiceToHaves) ExtractSections(
+        string? description)
+    {
+        var requirements = new List<string>();
+        var niceToHaves = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return (requirements, niceToHaves);
+        }
+
+        var text = CollapseWhitespaceRegex().Replace(
+            TagStripRegex().Replace(WebUtility.HtmlDecode(description) ?? description, " "), " ");
+
+        var matches = SectionHeaderRegex().Matches(text);
+        for (var i = 0; i < matches.Count; i++)
+        {
+            var bodyStart = matches[i].Index + matches[i].Length;
+            var bodyEnd = i + 1 < matches.Count ? matches[i + 1].Index : Math.Min(bodyStart + MaxSectionChars, text.Length);
+            if (bodyEnd <= bodyStart)
+            {
+                continue;
+            }
+
+            var target = NiceToHaveHeaderWords.Any(w => matches[i].Value.Contains(w, StringComparison.OrdinalIgnoreCase))
+                ? niceToHaves
+                : requirements;
+
+            foreach (var item in SplitItems(text[bodyStart..bodyEnd]))
+            {
+                if (target.Count >= MaxSectionItems)
+                {
+                    break;
+                }
+
+                target.Add(item);
+            }
+        }
+
+        return (requirements, niceToHaves);
+    }
+
+    private static IEnumerable<string> SplitItems(string body)
+    {
+        // Sentence ends, semicolons, bullets and mid-text dashes all delimit.
+        var parts = ItemSplitRegex().Split(body);
+        foreach (var part in parts)
+        {
+            var item = part.Trim().TrimStart('-', '*', '•').Trim().TrimEnd('.', '!', '?', ';', ':').Trim();
+            if (item.Length is >= 2 and <= MaxItemLength)
+            {
+                yield return item;
+            }
+        }
     }
 
     private static RemoteType DetectRemoteType(string title, string? location, string? description)
@@ -256,4 +366,18 @@ public sealed partial class EnrichmentService : IEnrichmentService
 
     [GeneratedRegex(@"\bintern(?:ship)?\b", RegexOptions.IgnoreCase)]
     private static partial Regex InternRegex();
+
+    [GeneratedRegex("<[^>]+>")]
+    private static partial Regex TagStripRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex CollapseWhitespaceRegex();
+
+    // Section headers must end with a colon ("Requirements:", "Bonus:") so
+    // prose mentions ("no requirements") never trigger extraction.
+    [GeneratedRegex(@"\b(requirements|what you(?:'ll| will) need|what you bring|qualifications|minimum qualifications|must have|you have|responsibilities|nice(?:-| )to(?:-| )haves?|bonus|preferred(?: qualifications)?|plus|what would set you apart|desired)\b\s*:", RegexOptions.IgnoreCase)]
+    private static partial Regex SectionHeaderRegex();
+
+    [GeneratedRegex(@"(?<=[.!?;])\s+|\s+[-*•]\s+")]
+    private static partial Regex ItemSplitRegex();
 }

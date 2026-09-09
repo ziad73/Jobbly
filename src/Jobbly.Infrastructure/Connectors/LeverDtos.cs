@@ -15,6 +15,7 @@ public sealed class LeverPosting
     public string? Description { get; init; }
     public string? HostedUrl { get; init; }
     public long? CreatedAt { get; init; }
+    public string? WorkplaceType { get; init; }
 }
 
 public sealed class LeverCategories

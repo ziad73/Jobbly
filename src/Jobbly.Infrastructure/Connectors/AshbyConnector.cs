@@ -58,7 +58,8 @@ public sealed class AshbyConnector : IJobConnector
                     PostedAtToUtc(j.PublishedAt),
                     salaryMin,
                     salaryMax,
-                    currency);
+                    currency,
+                    RemoteHint: j.IsRemote ? "Remote" : j.WorkplaceType);
             })
             .ToList() ?? [];
     }

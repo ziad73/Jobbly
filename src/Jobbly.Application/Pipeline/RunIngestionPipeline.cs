@@ -91,7 +91,7 @@ public sealed class RunIngestionPipeline
                 if (existing is not null)
                 {
                     _normalizer.Update(existing, raw);
-                    _enrichmentService.Enrich(existing);
+                    _enrichmentService.Enrich(existing, raw.RemoteHint);
                     updated++;
                     continue;
                 }
@@ -120,7 +120,7 @@ public sealed class RunIngestionPipeline
                     created++;
                 }
                 // 4. Enrich
-                _enrichmentService.Enrich(job);
+                _enrichmentService.Enrich(job, raw.RemoteHint);
             }
 
             run.Complete(created, updated, deduplicated);

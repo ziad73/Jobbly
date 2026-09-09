@@ -81,4 +81,74 @@ public sealed class EnrichmentTests
     {
         Assert.Equal(expected, Enriched("Engineer", description).EmploymentType);
     }
+
+    private static Job EnrichedWithHint(string title, string? hint, string description = "")
+    {
+        var job = MakeJob(title, description);
+        new EnrichmentService().Enrich(job, hint);
+        return job;
+    }
+
+    [Theory]
+    [InlineData("Remote", RemoteType.Remote)]
+    [InlineData("Hybrid", RemoteType.Hybrid)]
+    [InlineData("OnSite", RemoteType.OnSite)]
+    [InlineData("on-site", RemoteType.OnSite)]
+    [InlineData("nonsense", RemoteType.OnSite)]
+    [InlineData(null, RemoteType.OnSite)]
+    public void ProviderHintBeatsTextRules(string? hint, RemoteType expected)
+    {
+        // Title + location say nothing; description says nothing either, so a
+        // null/unrecognized hint falls back to OnSite.
+        Assert.Equal(expected, EnrichedWithHint("Backend Engineer", hint, "Berlin office role.").RemoteType);
+    }
+
+    [Fact]
+    public void HintOverridesConflictingText()
+    {
+        // Text screams remote, but the provider says on-site: provider wins.
+        var job = EnrichedWithHint("Backend Engineer (Remote)", "OnSite", "Fully remote worldwide.");
+        Assert.Equal(RemoteType.OnSite, job.RemoteType);
+    }
+
+    [Fact]
+    public void ExtractsRequirementsAndNiceToHaves()
+    {
+        const string description = """
+            Join our team building payments.
+            Requirements:
+            - 5 years of Python
+            - Postgres experience
+            Nice to have:
+            - Rust exposure
+            - Prior fintech work
+            """;
+
+        var job = Enriched("Backend Engineer", description);
+
+        Assert.Equal(["5 years of Python", "Postgres experience"], job.Requirements);
+        Assert.Equal(["Rust exposure", "Prior fintech work"], job.NiceToHaves);
+    }
+
+    [Fact]
+    public void NoHeadersMeansNoSections()
+    {
+        var job = Enriched("Backend Engineer", "Just a plain paragraph about the role.");
+
+        Assert.Empty(job.Requirements);
+        Assert.Empty(job.NiceToHaves);
+    }
+
+    [Fact]
+    public void ExtractsFromFlattenedText()
+    {
+        // Stored descriptions are whitespace-collapsed single-line text.
+        const string description = "Join our team building payments. Requirements: 5 years of Python. " +
+            "Postgres experience in production. Nice to have: Rust exposure, prior fintech work.";
+
+        var job = Enriched("Backend Engineer", description);
+
+        Assert.Equal(["5 years of Python", "Postgres experience in production"], job.Requirements);
+        Assert.Equal(["Rust exposure, prior fintech work"], job.NiceToHaves);
+    }
 }
