@@ -45,7 +45,7 @@ Jobbly.slnx
     ├── Jobbly.Application/     # Use cases + ports: IJobConnector, IJobNormalizer,
     │                           #   IDeduplicationService, IEnrichmentService,
     │                           #   RunIngestionPipeline, IJobblyDbContext
-    ├── Jobbly.Infrastructure/  # Connectors (Greenhouse, Lever), EF Core/Npgsql,
+    ├── Jobbly.Infrastructure/  # Connectors (Greenhouse, Lever, Ashby, RemoteOK), EF Core/Npgsql,
     │                           #   Hangfire scheduling, options config
     └── Jobbly.Api/             # Minimal APIs, middleware, composition root
 ```
@@ -74,7 +74,7 @@ Design decision: the pipeline runs inside `Jobbly.Api` for v1 (one deployable, d
 Following the phases in [TECHNICAL-DESIGN §4](./docs/TECHNICAL-DESIGN.md#4-delivery-phases):
 
 - [x] **Phase 0 — Foundation**: project structure, domain entities, EF Core + migrations, Postgres FTS groundwork, validated options config, Serilog + ProblemDetails error handling, Docker Compose dev/prod environments
-- [x] **Phase 1 — Pipeline backbone**: Greenhouse connector end-to-end (fetch → normalize → dedup → enrich → persist), Hangfire recurring runs, verified against the live Stripe board (594 jobs) via manual trigger; Lever (HighLevel board) and Ashby (Linear board) connectors added in Phase 5, each provider isolated behind `IJobConnector` with its own named HttpClient + resilience pipeline
+- [x] **Phase 1 — Pipeline backbone**: Greenhouse connector end-to-end (fetch → normalize → dedup → enrich → persist), Hangfire recurring runs, verified against the live Stripe board (594 jobs) via manual trigger; Lever (HighLevel board), Ashby (Linear board) and RemoteOK (remote aggregator) connectors added in Phase 5, each provider isolated behind `IJobConnector` with its own named HttpClient + resilience pipeline
 - [x] **Phase 2 — Search & discovery MVP**: `GET /api/jobs` (full-text q, tags, location, seniority, remote, salary filters; relevance/date/salary sort; paging over deduplicated canonicals) + `GET /api/jobs/{id}` detail; public, no login wall
 - [x] **Phase 3 — Accounts & profile**: Identity (email/password), JWT access + refresh (rotation, reuse detection), `User`/`Admin` roles, `/api/users/me*` authenticated-only, `/api/pipeline/trigger` + `/hangfire` admin-gated
 - [x] **Phase 4 — Saved jobs/searches & application tracker**: `/api/saved-jobs` (save/list/patch/delete, status flow, duplicate → 409), `/api/saved-searches` (CRUD + `/matches` feed reusing the search pipeline)
@@ -125,6 +125,9 @@ curl -X POST http://localhost:${API_PORT}/api/pipeline/trigger/lever \
   -H "Authorization: Bearer <admin-access-token>"
 # third provider (Ashby board, same pattern):
 curl -X POST http://localhost:${API_PORT}/api/pipeline/trigger/ashby \
+  -H "Authorization: Bearer <admin-access-token>"
+# fourth provider (RemoteOK aggregator, company comes per posting):
+curl -X POST http://localhost:${API_PORT}/api/pipeline/trigger/remoteok \
   -H "Authorization: Bearer <admin-access-token>"
 ```
 
