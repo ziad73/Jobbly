@@ -94,4 +94,45 @@ public sealed class ConnectorTests
         Assert.Equal("Remote", job.Location);
         Assert.NotNull(job.PostedAt);
     }
+
+    [Fact]
+    public async Task LeverPassesWorkplaceHint()
+    {
+        const string json = """
+            [{"id": "w-1", "text": "Engineer", "categories": {"location": "Remote"},
+              "description": "Body", "hostedUrl": "https://jobs.lever.co/t/w-1",
+              "createdAt": 1788000000000, "workplaceType": "Hybrid"}]
+            """;
+
+        using var client = ClientFor(json, "https://api.lever.co/v0/postings/t");
+        var connector = new LeverConnector(client, OptionsFor("lever", "T"));
+
+        var job = Assert.Single(await connector.FetchAsync());
+        Assert.Equal("Hybrid", job.RemoteHint);
+    }
+
+    [Fact]
+    public async Task AshbySkipsUnlistedAndPrefersRemoteFlag()
+    {
+        const string json = """
+            {"jobs": [
+              {"id": "a-1", "title": "Engineer", "location": "Berlin",
+               "isListed": true, "isRemote": true, "workplaceType": "Remote",
+               "jobUrl": "https://jobs.ashbyhq.com/t/a-1",
+               "descriptionPlain": "Plain", "publishedAt": "2026-02-01T10:00:00+00:00"},
+              {"id": "a-2", "title": "Hidden", "isListed": false,
+               "jobUrl": "https://jobs.ashbyhq.com/t/a-2"}
+            ]}
+            """;
+
+        using var client = ClientFor(json, "https://api.ashbyhq.com/posting-api/job-board/t");
+        var connector = new AshbyConnector(client, OptionsFor("ashby", "T"));
+
+        Assert.Equal("ashby", connector.ProviderSlug);
+        var job = Assert.Single(await connector.FetchAsync());
+        Assert.Equal("a-1", job.ExternalId);
+        Assert.Equal("Remote", job.RemoteHint);
+        Assert.Equal("Plain", job.Description);
+        Assert.Null(job.SalaryMin);
+    }
 }

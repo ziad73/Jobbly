@@ -58,8 +58,9 @@ Jobbly.slnx
 Hangfire trigger → RunIngestionPipeline
   → IJobConnector.FetchAsync()    (per provider, isolated, Polly retry + circuit breaker)
   → normalize                     (provider payload → canonical Job entity)
-  → deduplicate                   (fingerprint match → link to CanonicalJob)
-  → enrich                        (tech tags, seniority inference, salary normalization)
+  → deduplicate                   (exact fingerprint, then pg_trgm ≥0.95 same-company fuzzy pass → link to CanonicalJob)
+  → enrich                        (tech tags incl. dotted/multi-word forms, 12-level seniority inference,
+                                   remote incl. provider hints, requirements/nice-to-haves section extraction)
   → index                         (Postgres FTS tsvector is maintained by a generated column)
   → record PipelineRun            (counts, errors, retries)
 ```

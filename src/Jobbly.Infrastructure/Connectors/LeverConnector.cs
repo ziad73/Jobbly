@@ -48,7 +48,8 @@ public sealed class LeverConnector : IJobConnector
                 p.Categories?.Location,
                 !string.IsNullOrWhiteSpace(p.DescriptionPlain) ? p.DescriptionPlain : p.Description,
                 p.HostedUrl!,
-                PostedAtToUtc(p.CreatedAt)))
+                PostedAtToUtc(p.CreatedAt),
+                RemoteHint: p.WorkplaceType))
             .ToList() ?? [];
     }
 
