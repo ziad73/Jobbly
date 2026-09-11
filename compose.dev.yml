@@ -8,10 +8,21 @@ services:
       # rude edit (e.g. changes to top-level statements). Restart instead.
       DOTNET_WATCH_RESTART_ON_RUDE_EDIT: "1"
     volumes:
-      # NOTE: not read-only - the /src/bin and /src/obj anonymous-volume
-      # overrides below must be able to shadow those directories.
+      # NOTE: not read-only - the anonymous-volume overrides below must be
+      # able to shadow the build directories.
       - .:/src
       # - .:/src:ro
-      # - /src/bin         # anonymous, writable, isolated build output
-      # - /src/obj         # anonymous, writable, isolated restore/build cache
+      # Isolated build outputs: host-side dotnet commands must never rewrite
+      # the restore/build cache the container's watch is monitoring (shared
+      # obj/ caused failed rebuilds that crashed dotnet watch). Source files
+      # still sync via the bind mount, so hot reload keeps working - only
+      # bin/obj diverge per environment. Paths are per-project build dirs.
+      - /src/src/Jobbly.Api/bin
+      - /src/src/Jobbly.Api/obj
+      - /src/src/Jobbly.Application/bin
+      - /src/src/Jobbly.Application/obj
+      - /src/src/Jobbly.Domain/bin
+      - /src/src/Jobbly.Domain/obj
+      - /src/src/Jobbly.Infrastructure/bin
+      - /src/src/Jobbly.Infrastructure/obj
     command: dotnet watch run --project src/Jobbly.Api --no-launch-profile
