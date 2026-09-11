@@ -13,6 +13,7 @@ public sealed class AuthService(
     JobblyDbContext dbContext,
     IJwtTokenGenerator tokenGenerator,
     RefreshTokenStore refreshTokenStore,
+    IGoogleTokenValidator googleTokenValidator,
     IOptions<JwtOptions> options) : IAuthService
 {
     private readonly JwtOptions _jwtOptions = options.Value;
@@ -109,6 +110,42 @@ public sealed class AuthService(
         token.Revoke("logout");
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    public async Task<AuthResponse?> LoginWithGoogleAsync(string idToken, CancellationToken cancellationToken = default)
+    {
+        var identity = await googleTokenValidator.ValidateAsync(idToken, cancellationToken);
+        if (identity is null)
+        {
+            return null;
+        }
+
+        var user = await userManager.FindByEmailAsync(identity.Email);
+        if (user is null)
+        {
+            // Password-less account: no password hash is ever set, so the
+            // password-login path fails closed for Google users.
+            user = ApplicationUser.Create(identity.Email, identity.FullName);
+
+            var result = await userManager.CreateAsync(user);
+            if (!result.Succeeded)
+            {
+                return null;
+            }
+
+            await userManager.AddToRoleAsync(user, ApplicationRoles.User);
+
+            dbContext.UserProfiles.Add(UserProfile.Create(user.Id));
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        else if (!user.EmailConfirmed)
+        {
+            // Auto-link: Google proved ownership of this verified email.
+            user.EmailConfirmed = true;
+            await userManager.UpdateAsync(user);
+        }
+
+        return await IssueTokenPairAsync(user, cancellationToken);
     }
 
     private async Task<AuthResponse> IssueTokenPairAsync(ApplicationUser user, CancellationToken cancellationToken)

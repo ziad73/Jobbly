@@ -119,7 +119,12 @@ app.UseSerilogRequestLogging();
 
 // Rate limiting: floods are rejected cheaply before auth; endpoint metadata
 // is resolved by this point so per-endpoint policies apply.
-app.UseRateLimiter();
+// Skipped in Testing: e2e suites share one client IP and would otherwise
+// exhaust the auth window across tests (429 behavior is covered manually).
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseRateLimiter();
+}
 
 // Authentication: validates a presented bearer token.
 app.UseAuthentication();

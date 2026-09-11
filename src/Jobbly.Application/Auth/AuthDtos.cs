@@ -17,6 +17,9 @@ public sealed record RefreshRequest(
 public sealed record LogoutRequest(
     [property: Required] string RefreshToken);
 
+public sealed record GoogleLoginRequest(
+    [property: Required] string IdToken);
+
 public sealed record AuthResponse(
     string AccessToken,
     string RefreshToken,

@@ -190,7 +190,7 @@ Existing solutions are either broad without technical depth, or niche without ag
 
 **Goal:** Let users register once and unlock a personalized, persistent experience.
 
-- Email + password (ASP.NET Core Identity; Google OAuth deferred). Auth uses JWT access tokens (`Authorization: Bearer`) + opaque refresh tokens returned in the body, stored hashed and rotated on refresh.
+- Email + password and Google sign-in (ASP.NET Core Identity; Google ID tokens verified server-side, verified emails auto-linked). Auth uses JWT access tokens (`Authorization: Bearer`) + opaque refresh tokens returned in the body, stored hashed and rotated on refresh.
 - **Browsing is fully public — no registration wall for search**
 - Profile: name/avatar · title + seniority · years of experience · tech stack · preferred locations · remote preference · salary expectation
 

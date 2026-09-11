@@ -70,6 +70,18 @@ public static class AuthEndpoints
             .WithSummary("Revoke a refresh token")
             .WithDescription("Revokes the supplied refresh token so it can no longer be used to obtain new access tokens. Idempotent.");
 
+        group.MapPost("/google",
+            async (GoogleLoginRequest request, IAuthService auth, CancellationToken ct) =>
+            {
+                var response = await auth.LoginWithGoogleAsync(request.IdToken, ct);
+                return response is null
+                    ? Results.Unauthorized()
+                    : Results.Ok(response);
+            })
+            .WithName("GoogleLoginUser")
+            .WithSummary("Sign in with Google")
+            .WithDescription("Verifies a Google ID token, finds-or-creates the user (auto-linking verified emails), and returns an access + refresh token pair.");
+
         return app;
     }
 }
