@@ -64,6 +64,11 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<GoogleOptions>()
+            .BindConfiguration(GoogleOptions.SectionName)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         AddGreenhouseConnector(services);
         AddLeverConnector(services);
         AddAshbyConnector(services);
@@ -80,6 +85,7 @@ public static class DependencyInjection
         // Auth + own-profile services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddScoped<IGoogleTokenValidator, GoogleTokenValidator>();
         services.AddScoped<RefreshTokenStore>();
         services.AddScoped<IUserProfileService, UserProfileService>();
 

@@ -46,7 +46,7 @@ Companion to [`PRD.md`](./PRD.md). This document answers **how** we build Jobbly
 | Layer | Technology | Why |
 |---|---|---|
 | API | ASP.NET Core 10 — Minimal APIs | High throughput, clean endpoint structure |
-| Auth | ASP.NET Core Identity + JWT | Battle-tested; Google OAuth via OpenIdConnect |
+| Auth | ASP.NET Core Identity + JWT | Battle-tested; Google sign-in via ID-token verification |
 | ORM | Entity Framework Core 10 + Npgsql | Typed queries, migrations, strong Postgres support |
 | Background Jobs | Hangfire on Postgres | Pipeline scheduling, retries, dashboard — no extra infra |
 | HTTP Clients | Refit + Polly | Typed provider clients with retry and circuit-breaker |
@@ -334,7 +334,7 @@ The pipeline and searchable job catalog come before advanced user features.
 
 **Scope**
 - Tables: Identity (`AspNet*` via ASP.NET Core Identity), `user_profiles`, `user_skills`, `refresh_tokens`
-- Auth: register, login, refresh token (rotation + reuse detection), logout; Google OAuth deferred
+- Auth: register, login, refresh token (rotation + reuse detection), logout; Google sign-in (ID-token verification, auto-link)
 - Roles & authorization: `User` (auto on registration), `Admin` (manual); `/api/users/me*` authenticated-only, ingestion trigger + Hangfire dashboard admin-gated
 - Profile endpoints and fields (title, seniority, experience, stack, locations, remote pref, salary expectation)
 - Keep job search public
@@ -617,7 +617,7 @@ Query parameters:
 | `POST` | `/api/auth/login` | Login, returns token pair + user |
 | `POST` | `/api/auth/refresh` | Rotate refresh token (returns a new pair) |
 | `POST` | `/api/auth/logout` | Revoke a refresh token |
-| `GET` | `/api/auth/google` | Google OAuth flow *(deferred)* |
+| `POST` | `/api/auth/google` | Verify Google ID token, find-or-create user, return token pair |
 
 #### User Profile (requires a valid bearer token)
 

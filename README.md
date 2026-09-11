@@ -28,7 +28,7 @@ v1 scope deliberately excludes AI matching, alerts, and resume analysis — thos
 | Database | PostgreSQL 16 (EF Core + Npgsql) |
 | Search | Postgres full-text (`tsvector` generated column + GIN index) — Elasticsearch later if scale demands it |
 | Background jobs | Hangfire (ingestion pipeline scheduling, dashboard, retries) |
-| Auth | JWT access (15 min, `Authorization: Bearer`) + opaque refresh tokens (7 days, hashed at rest, rotated on refresh); Google OAuth *(deferred)*; roles `User` + `Admin` |
+| Auth | JWT access (15 min, `Authorization: Bearer`) + opaque refresh tokens (7 days, hashed at rest, rotated on refresh); Google sign-in (ID-token verification); roles `User` + `Admin` |
 | Containerization | Docker / Docker Compose |
 
 ---
@@ -164,6 +164,7 @@ curl "http://localhost:${API_PORT}/api/jobs/01a06299-e407-7b5d-aab4-203d3c587d65
 | `POST /api/auth/login` | `{email, password}` | Returns a token pair |
 | `POST /api/auth/refresh` | `{refreshToken}` | Rotates the refresh token (old one is revoked) and returns a new pair |
 | `POST /api/auth/logout` | `{refreshToken}` | Revokes that refresh token |
+| `POST /api/auth/google` | `{idToken}` | Verifies a Google ID token, finds-or-creates the user (auto-links verified emails), returns a token pair. Needs a real `Google:ClientId` (placeholder baked in for local demo) |
 | `GET /api/users/me` | — | Current profile; requires a bearer token (caller resolved from its `sub` claim) |
 | `PUT /api/users/me/profile` | profile fields | Partial update; enum fields take numeric values; requires a bearer token |
 | `PUT /api/users/me/skills` | `{skills:[…]}` | Replaces the whole skill set (deduped); requires a bearer token |

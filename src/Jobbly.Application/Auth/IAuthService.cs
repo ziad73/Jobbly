@@ -14,6 +14,11 @@ public interface IAuthService
     /// <summary>Verifies credentials and returns a token pair (null = invalid credentials).</summary>
     Task<AuthResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>Verifies a Google ID token, then finds-or-creates the user
+    /// (auto-linking verified emails onto existing accounts) and returns our
+    /// own token pair. Null = invalid, expired, or unverified token.</summary>
+    Task<AuthResponse?> LoginWithGoogleAsync(string idToken, CancellationToken cancellationToken = default);
+
     /// <summary>Rotates a refresh token and returns a new token pair. Replaying a revoked
     /// token revokes all the user's active tokens (suspected theft). Null = invalid/expired/revoked.</summary>
     Task<AuthResponse?> RefreshAsync(string refreshToken, CancellationToken cancellationToken = default);
